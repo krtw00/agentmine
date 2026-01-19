@@ -28,5 +28,9 @@
 アーキテクチャ決定記録（ADR）：
 
 - [ADR-001: TypeScript Monorepo](./adr/001-typescript-monorepo.md)
-- [ADR-002: SQLite as Default DB](./adr/002-sqlite-default.md)
+- [ADR-002: Database Strategy](./adr/002-sqlite-default.md) - SQLite/MySQL/PostgreSQL対応
 - [ADR-003: Drizzle ORM](./adr/003-drizzle-orm.md)
+
+### 技術比較
+
+- [MySQL vs PostgreSQL 詳細比較](./adr/mysql-vs-postgresql-comparison.md) - グローバル市場・企業向け分析
