@@ -1,228 +1,291 @@
 # Architecture
 
-agentmineのアーキテクチャ設計。
-
-## 概要
-
-agentmineは、AIエージェントと人間が協調してプロジェクトを管理するためのツール。
-Redmineのようなチケット管理をAIエージェント向けに最適化している。
-
-## コンポーネント
-
-### 1. CLI (Go)
-
-AIエージェント向けの高速インターフェース。
+## System Overview
 
 ```
-cli/
-├── cmd/
-│   └── agentmine/
-│       └── main.go          # エントリーポイント
-├── internal/
-│   ├── db/                  # SQLite操作
-│   │   ├── db.go
-│   │   └── migrations.go
-│   ├── task/                # タスク管理
-│   │   ├── task.go
-│   │   └── commands.go
-│   ├── agent/               # エージェント管理
-│   │   ├── agent.go
-│   │   └── runner.go
-│   ├── skill/               # スキル管理
-│   │   ├── skill.go
-│   │   └── executor.go
-│   └── config/              # 設定管理
-│       └── config.go
-├── go.mod
-└── go.sum
+┌──────────────────────────────────────────────────────────────────────────┐
+│                              agentmine                                    │
+├──────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐    │
+│  │   CLI       │  │  Web UI     │  │ MCP Server  │  │  Executor   │    │
+│  │             │  │  (Next.js)  │  │             │  │  (Worker)   │    │
+│  │  @cli       │  │  @web       │  │  @cli/mcp   │  │  @cli/exec  │    │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘    │
+│         │                │                │                │            │
+│         └────────────────┴────────────────┴────────────────┘            │
+│                                   │                                      │
+│                                   ▼                                      │
+│                    ┌──────────────────────────────┐                     │
+│                    │           @core              │                     │
+│                    │                              │                     │
+│                    │  ┌────────┐  ┌────────────┐ │                     │
+│                    │  │Services│  │   Models   │ │                     │
+│                    │  └────────┘  └────────────┘ │                     │
+│                    │  ┌────────┐  ┌────────────┐ │                     │
+│                    │  │   DB   │  │   Config   │ │                     │
+│                    │  │Drizzle │  │   Parser   │ │                     │
+│                    │  └────────┘  └────────────┘ │                     │
+│                    └──────────────┬──────────────┘                     │
+│                                   │                                      │
+│                                   ▼                                      │
+│                    ┌──────────────────────────────┐                     │
+│                    │     SQLite / PostgreSQL      │                     │
+│                    └──────────────────────────────┘                     │
+│                                                                          │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │                        File System                               │   │
+│  │  .agentmine/                                                     │   │
+│  │  ├── config.yaml      # プロジェクト設定                          │   │
+│  │  ├── data.db          # SQLiteデータベース                        │   │
+│  │  ├── memory/          # Memory Bank（コンテキスト）               │   │
+│  │  └── skills/          # ローカルスキル                            │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 2. Web UI (Next.js)
-
-人間向けのダッシュボード。
+## Package Structure
 
 ```
-web/
-├── src/
-│   ├── app/
-│   │   ├── page.tsx         # ダッシュボード
-│   │   ├── tasks/           # タスク一覧・詳細
-│   │   ├── agents/          # エージェント設定
-│   │   └── settings/        # プロジェクト設定
-│   ├── components/
-│   │   ├── kanban/          # カンバンボード
-│   │   ├── timeline/        # タイムライン
-│   │   └── ui/              # shadcn/ui
-│   └── lib/
-│       └── db.ts            # SQLite接続
-├── package.json
-└── next.config.js
+agentmine/
+├── packages/
+│   ├── cli/                    # CLIアプリケーション
+│   │   ├── src/
+│   │   │   ├── index.ts        # エントリーポイント
+│   │   │   ├── commands/       # コマンド定義
+│   │   │   │   ├── init.ts
+│   │   │   │   ├── task.ts
+│   │   │   │   ├── agent.ts
+│   │   │   │   ├── skill.ts
+│   │   │   │   ├── context.ts
+│   │   │   │   └── ui.ts
+│   │   │   ├── mcp/            # MCPサーバー
+│   │   │   │   ├── server.ts
+│   │   │   │   ├── tools.ts
+│   │   │   │   └── resources.ts
+│   │   │   └── executor/       # エージェント実行エンジン
+│   │   │       ├── runner.ts
+│   │   │       ├── parallel.ts
+│   │   │       └── sandbox.ts
+│   │   └── package.json
+│   │
+│   ├── web/                    # Web UI
+│   │   ├── src/
+│   │   │   ├── app/            # Next.js App Router
+│   │   │   │   ├── layout.tsx
+│   │   │   │   ├── page.tsx    # Dashboard
+│   │   │   │   ├── tasks/      # タスク管理
+│   │   │   │   ├── agents/     # エージェント管理
+│   │   │   │   └── api/        # API Routes
+│   │   │   └── components/     # UIコンポーネント
+│   │   │       ├── kanban/
+│   │   │       ├── task-card/
+│   │   │       └── sidebar/
+│   │   └── package.json
+│   │
+│   └── core/                   # 共有ロジック
+│       ├── src/
+│       │   ├── index.ts        # Public API
+│       │   ├── db/             # データベース
+│       │   │   ├── schema.ts   # Drizzle スキーマ
+│       │   │   ├── client.ts   # DB接続
+│       │   │   └── migrate.ts  # マイグレーション
+│       │   ├── models/         # ドメインモデル
+│       │   │   ├── task.ts
+│       │   │   ├── agent.ts
+│       │   │   ├── session.ts
+│       │   │   └── skill.ts
+│       │   ├── services/       # ビジネスロジック
+│       │   │   ├── task-service.ts
+│       │   │   ├── agent-service.ts
+│       │   │   ├── memory-service.ts
+│       │   │   └── skill-service.ts
+│       │   ├── config/         # 設定管理
+│       │   │   ├── parser.ts   # YAML解析
+│       │   │   └── schema.ts   # 設定スキーマ
+│       │   └── types/          # 型定義
+│       │       └── index.ts
+│       └── package.json
+│
+├── pnpm-workspace.yaml
+├── turbo.json
+└── package.json
 ```
 
-### 3. Database (SQLite)
+## Data Flow
 
-ローカル完結の軽量データベース。
-
-```
-~/.agentmine/
-├── global.db                # グローバルDB（プロジェクト一覧等）
-└── config.yaml              # グローバル設定
-
-<project>/.agentmine/
-├── project.db               # プロジェクトローカルDB
-├── config.yaml              # プロジェクト設定
-└── skills/                  # カスタムスキル
-    └── deploy.md
-```
-
-## データフロー
-
-### タスク作成フロー
+### 1. CLI → Core → DB
 
 ```
-┌─────────┐     ┌─────────┐     ┌─────────┐
-│   CLI   │────>│   DB    │<────│  Web UI │
-│ (AI)    │     │ (SQLite)│     │ (Human) │
-└─────────┘     └─────────┘     └─────────┘
-     │                               │
-     │  agentmine task add "..."     │  フォームで作成
-     │                               │
-     └───────────────┬───────────────┘
-                     ▼
-              ┌─────────────┐
-              │   tasks     │
-              │   table     │
-              └─────────────┘
+User Input
+    │
+    ▼
+┌─────────────────┐
+│  CLI Command    │  agentmine task add "..."
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  TaskService    │  @core/services/task-service.ts
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Drizzle ORM    │  @core/db/client.ts
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  SQLite/PG      │  .agentmine/data.db
+└─────────────────┘
 ```
 
-### タスク実行フロー
+### 2. Web UI → API → Core → DB
 
 ```
-1. agentmine task start 3
-   └─> status: open -> in_progress
-   └─> git checkout -b task-3-feature-name
-   └─> histories: action=started
-
-2. AI Agent executes task
-   └─> sessions: 実行ログ記録
-   └─> 定期的に progress 更新
-
-3. agentmine task done 3
-   └─> status: in_progress -> review
-   └─> git commit && git push
-   └─> gh pr create
-   └─> tasks: pr_url 設定
-
-4. Human reviews and merges
-   └─> status: review -> done
-   └─> histories: action=completed
+Browser
+    │
+    ▼
+┌─────────────────┐
+│  Next.js Page   │  /tasks
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  API Route      │  /api/tasks
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  TaskService    │  @core (shared)
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Database       │
+└─────────────────┘
 ```
 
-## 設定ファイル
+### 3. MCP Client → MCP Server → Core
 
-### グローバル設定 (`~/.agentmine/config.yaml`)
+```
+Cursor/Windsurf
+    │
+    ▼
+┌─────────────────┐
+│  MCP Protocol   │  JSON-RPC over stdio
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  MCP Server     │  agentmine mcp serve
+│  (Tools/Res)    │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Core Services  │
+└─────────────────┘
+```
+
+## Key Design Decisions
+
+### 1. Monorepo with pnpm + Turborepo
+
+**理由:**
+- CLI/Web/Coreで型定義を共有
+- 一貫したビルド・テスト環境
+- Turborepoのキャッシュで高速ビルド
+
+### 2. SQLite as Default, PostgreSQL for Teams
+
+**理由:**
+- SQLite: ゼロ設定、ポータブル、ローカル開発に最適
+- PostgreSQL: チーム共有、スケーラビリティ
+- Drizzle ORMで両方をサポート
+
+### 3. File-based Memory Bank
+
+**理由:**
+- Markdownで人間も読める
+- Gitで履歴管理可能
+- AIエージェントが直接読み書き可能
+
+### 4. YAML Configuration
+
+**理由:**
+- 人間が読みやすい
+- コメント記述可能
+- 既存ツール（Claude Code等）との親和性
+
+## Security Considerations
+
+### 1. Sandbox Execution（将来）
+
+並列実行時はDockerコンテナで隔離：
+
+```
+┌──────────────────────────────────────┐
+│  Host                                │
+│  ┌────────────┐  ┌────────────┐     │
+│  │ Container  │  │ Container  │     │
+│  │  Task #1   │  │  Task #2   │     │
+│  │  (isolated)│  │  (isolated)│     │
+│  └────────────┘  └────────────┘     │
+└──────────────────────────────────────┘
+```
+
+### 2. API Key Management
+
+- 環境変数で管理（`.env`）
+- 設定ファイルには含めない
+- MCP経由でのキー露出を防ぐ
+
+### 3. Skill Validation
+
+リモートスキル読み込み時：
+- HTTPSのみ許可
+- 署名検証（将来）
+- ホワイトリスト制御
+
+## Extensibility
+
+### 1. Plugin System（将来）
+
+```typescript
+// プラグインインターフェース
+interface AgentminePlugin {
+  name: string;
+  hooks: {
+    onTaskCreate?: (task: Task) => void;
+    onTaskComplete?: (task: Task) => void;
+    onSessionStart?: (session: Session) => void;
+  };
+  commands?: Command[];
+  mcpTools?: MCPTool[];
+}
+```
+
+### 2. Custom Agents
 
 ```yaml
-default_model: claude-sonnet
-default_agent: coder
-
-builtin_skills:
-  - commit
-  - test
-  - review
-  - debug
-
-web_ui:
-  port: 3333
-  auto_open: true
-```
-
-### プロジェクト設定 (`.agentmine/config.yaml`)
-
-```yaml
-project:
-  name: MyProject
-  description: "プロジェクトの説明"
-
+# .agentmine/config.yaml
 agents:
-  coder:
-    description: "コード実装担当"
+  custom-agent:
+    description: "カスタムエージェント"
     model: claude-sonnet
-    tools:
-      - Read
-      - Write
-      - Edit
-      - Bash
-      - Grep
-      - Glob
-    skills:
-      - commit
-      - test
-      - debug
-
-  reviewer:
-    description: "コードレビュー担当"
-    model: claude-haiku
-    tools:
-      - Read
-      - Grep
-      - Glob
-    skills:
-      - review
-
-skills:
-  deploy:
-    source: local
-    path: .agentmine/skills/deploy.md
-
-  notify:
-    source: inline
-    prompt: |
-      Slackに通知を送信してください。
-      チャンネル: #dev
-      メッセージ: {{message}}
-
-git:
-  branch_prefix: "task-"
-  auto_pr: true
+    tools: [Read, Write]
+    skills: [my-skill]
+    # カスタム設定
+    config:
+      temperature: 0.7
+      maxTokens: 4096
 ```
 
-## CLI コマンド設計
+### 3. Skill Marketplace（将来）
 
+```bash
+# コミュニティスキルのインストール
+agentmine skill install @community/security-audit
+agentmine skill install @company/internal-review
 ```
-agentmine
-├── init                     # プロジェクト初期化
-├── projects                 # プロジェクト一覧
-│
-├── task
-│   ├── add <title>          # タスク追加
-│   ├── list                 # 一覧
-│   ├── show <id>            # 詳細
-│   ├── edit <id>            # 編集
-│   ├── assign <id> <agent>  # 担当割当
-│   ├── start <id>           # 着手
-│   ├── done <id>            # 完了
-│   └── cancel <id>          # キャンセル
-│
-├── agent
-│   ├── list                 # 一覧
-│   ├── show <name>          # 詳細
-│   ├── run <name> <prompt>  # 実行
-│   └── define <name>        # 定義追加
-│
-├── skill
-│   ├── list                 # 一覧
-│   ├── show <name>          # 詳細
-│   └── run <name>           # 実行
-│
-├── history <task_id>        # 履歴表示
-│
-└── ui                       # Web UI起動
-```
-
-## 将来の拡張
-
-1. **リモート同期**: GitHub Issues / Linear との同期
-2. **通知**: Slack / Discord 連携
-3. **メトリクス**: 生産性分析ダッシュボード
-4. **チーム機能**: 複数人での利用
