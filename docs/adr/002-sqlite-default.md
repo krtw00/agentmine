@@ -1,8 +1,8 @@
-# ADR-002: Database Strategy (SQLite Default, MySQL/PostgreSQL for Production)
+# ADR-002: Database Strategy (SQLite + PostgreSQL)
 
 ## Status
 
-**Accepted** - 2025-01 (Updated)
+**Accepted** - 2025-01 (Updated: PostgreSQL確定)
 
 ## Context
 
@@ -11,23 +11,21 @@ agentmineはプロジェクト管理データ（タスク、セッション、�
 ### 使用シナリオ
 
 1. **個人開発者**: ローカルでAIエージェントを使って開発
-2. **スタートアップ**: 数人〜数十人でプロジェクトを共有
-3. **企業**: 既存インフラ（MySQL/PostgreSQL）を活用、堅実な運用
+2. **スタートアップ〜企業**: チームでプロジェクトを共有
 
 ### 検討した選択肢
 
 | 選択肢 | メリット | デメリット |
 |--------|---------|-----------|
-| **SQLite** | ゼロ設定、ファイルベース、ポータブル | 同時書き込みに弱い |
-| **PostgreSQL** | 機能豊富、JSONB、標準SQL準拠 | サーバー必要 |
-| **MySQL** | 広く採用、運用経験者多い、読み取り高速 | Oracle懸念、機能やや劣る |
-| **JSON/YAML** | シンプル、人間可読 | クエリ困難、競合問題 |
+| **SQLite** | ゼロ設定、ファイルベース | 同時書き込みに弱い |
+| **PostgreSQL** | 機能豊富、AI/ベクトル検索対応 | サーバー必要 |
+| **MySQL** | 広く採用、運用経験者多い | AI機能が未成熟 |
 
 詳細比較: [MySQL vs PostgreSQL 詳細比較](./mysql-vs-postgresql-comparison.md)
 
 ## Decision
 
-**SQLiteをデフォルト、MySQL/PostgreSQL両方を本番環境向けにサポート**する。
+**SQLiteをローカル開発用デフォルト、PostgreSQLを本番環境用**とする。
 
 ```yaml
 # .agentmine/config.yaml
@@ -36,14 +34,12 @@ agentmineはプロジェクト管理データ（タスク、セッション、�
 database:
   url: file:.agentmine/data.db
 
-# MySQL（企業の既存環境）
-database:
-  url: mysql://user:pass@host:3306/agentmine
-
-# PostgreSQL（モダン環境）
+# 本番環境
 database:
   url: postgres://user:pass@host:5432/agentmine
 ```
+
+**MySQLは対応しない。**
 
 ## Rationale
 
@@ -52,73 +48,110 @@ database:
 - **ゼロ設定**: `agentmine init`だけで即座に使える
 - **ポータブル**: `.agentmine/data.db`をコピーするだけでバックアップ
 - **十分な性能**: 個人〜数人の利用なら問題なし
-- **類似ツールの先例**: TSK, TaskMaster AI等もSQLite採用
 
-### 2. MySQL/PostgreSQL両対応にした理由
+### 2. PostgreSQLを本番DBとして確定した理由
 
-企業環境では既存インフラとの親和性が重要：
+#### AI機能との親和性（決定的要因）
 
-| シナリオ | 推奨 | 理由 |
-|----------|------|------|
-| 既存MySQL環境の企業 | MySQL | 既存DBAの知見活用、インフラ統一 |
-| 新規構築・スタートアップ | PostgreSQL | 機能豊富、ライセンス安心 |
-| Oracle離脱検討企業 | PostgreSQL | ベンダーロックイン回避 |
-| 超大規模読み取りワークロード | MySQL | 実績あり |
-| AI/ベクトル検索統合予定 | PostgreSQL | pgvector対応 |
+| 機能 | PostgreSQL | MySQL |
+|------|------------|-------|
+| ベクトル検索 | ◎ pgvector（成熟、2019年〜） | △ 2025年2月GA（新しい） |
+| クラウドサポート | ◎ 全主要クラウド | △ Google Cloud SQLのみ |
+| AI統合実績 | ◎ 多数（Supabase, Neon等） | △ 少ない |
 
-### 3. MySQL vs PostgreSQLの判断をユーザーに委ねる理由
+agentmineの将来機能でベクトル検索が必要：
 
-グローバル市場の現状：
+- **Memory Bankのセマンティック検索**: 過去セッションの類似検索
+- **タスク類似検索**: 「似たタスクを探す」
+- **スキル推薦**: コンテキストに合ったスキル提案
 
-- **市場シェア**: MySQL (40%) > PostgreSQL (18%)
-- **開発者人気**: PostgreSQL (46%) > MySQL (41%) ※2025年逆転
-- **Fortune 500**: 両方とも多数採用（Apple, Instagram → PostgreSQL / Meta, GitHub → MySQL）
+```sql
+-- pgvectorによるセマンティック検索
+SELECT * FROM memory_entries
+ORDER BY embedding <-> $query_embedding
+LIMIT 10;
+```
 
-どちらが「正解」とは言えない。ユーザーの状況に応じた選択を可能にする。
+#### 技術的優位性
 
-### 4. MariaDBについて
+| 観点 | PostgreSQL | MySQL |
+|------|------------|-------|
+| JSON型 | ◎ JSONB（インデックス可） | ○ JSON |
+| 標準SQL準拠 | ◎ 高い | △ 独自拡張多い |
+| 拡張性 | ◎ PostGIS, pgvector等 | △ 限定的 |
+| 複雑クエリ | ◎ 優秀 | ○ 良好 |
 
-MySQLのフォークであるMariaDBも、MySQL互換として動作する想定。
-Oracle懸念を避けたい場合のMySQLの代替として有効。
+#### ライセンス・ベンダーリスク
+
+- **PostgreSQL**: BSD-like、ベンダーロックインなし
+- **MySQL**: Oracle所有、Enterprise版への誘導懸念
+
+#### 開発者トレンド
+
+- Stack Overflow 2024-2025: PostgreSQLがMySQLを逆転し1位
+- 新規プロジェクトの多くがPostgreSQLを選択
+
+### 3. MySQLを対応しない理由
+
+- AI機能（ベクトル検索）のサポートが未成熟
+- 2つのRDBMS対応はメンテナンスコストが高い
+- PostgreSQLで企業ニーズも十分カバー可能
+
+既存MySQL環境の企業には、PostgreSQLへの移行またはハイブリッド構成を推奨。
 
 ## Consequences
 
 ### Positive
 
-- 初期セットアップが簡単（SQLite）
-- 企業の既存インフラに適応可能（MySQL/PostgreSQL）
-- ベンダーロックインを回避（選択肢を提供）
+- 単一RDBMSでメンテナンスコスト削減
+- AI機能（pgvector）をネイティブに活用可能
+- モダンなエコシステム（Supabase, Neon等）との親和性
 
 ### Negative
 
-- 3つのDBをサポートするテスト・メンテナンスコスト
-- DB間の微妙な挙動差異への対応が必要
-- Drizzle ORMのスキーマ定義がDB毎に若干異なる
-
-### Implementation
-
-```
-packages/core/src/db/
-├── schema/
-│   ├── sqlite.ts      # SQLite用スキーマ
-│   ├── mysql.ts       # MySQL用スキーマ
-│   └── postgres.ts    # PostgreSQL用スキーマ
-├── client.ts          # DB接続（URL判定で自動切替）
-└── migrate.ts         # マイグレーション
-```
+- 既存MySQL環境の企業は移行が必要
+- MySQLのみ運用経験のあるDBAには学習コスト
 
 ### Migration Path
 
 ```bash
-# SQLite → MySQL/PostgreSQL移行
+# SQLite → PostgreSQL移行
 agentmine db export --format sql > backup.sql
 # config.yamlのdatabase.urlを変更
+agentmine db migrate
 agentmine db import --file backup.sql
+```
+
+## Future Considerations
+
+### pgvector統合
+
+```sql
+-- Memory Bankのベクトル検索
+CREATE TABLE memory_entries (
+  id SERIAL PRIMARY KEY,
+  session_id INTEGER REFERENCES sessions(id),
+  content TEXT,
+  embedding VECTOR(1536),  -- OpenAI text-embedding-3-small
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX ON memory_entries 
+USING hnsw (embedding vector_cosine_ops);
+```
+
+### Supabase統合（将来）
+
+```yaml
+database:
+  provider: supabase
+  url: https://xxx.supabase.co
+  key: ${SUPABASE_KEY}
 ```
 
 ## References
 
+- [pgvector GitHub](https://github.com/pgvector/pgvector)
+- [Timescale: PostgreSQL as Vector Database](https://www.timescale.com/blog/postgresql-as-a-vector-database-create-store-and-query-openai-embeddings-with-pgvector)
 - [MySQL vs PostgreSQL 詳細比較](./mysql-vs-postgresql-comparison.md)
 - [SQLite When To Use](https://www.sqlite.org/whentouse.html)
-- [Drizzle ORM Multi-DB](https://orm.drizzle.team/docs/overview)
-- [DB-Engines Ranking](https://db-engines.com/en/ranking)
