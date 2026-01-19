@@ -1,155 +1,182 @@
 # Memory Bank
 
-APMから着想を得たコンテキスト永続化機能。
+プロジェクト決定事項を永続化し、AIエージェントに知識として渡す機能。
 
 ## 概要
 
-AIエージェントのセッションが終了しても、プロジェクトの文脈・決定事項・進捗を保持し、新しいセッションで復元できる。
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Memory Bank とは                                  │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  【解決する問題】                                                    │
+│  AIエージェントはセッション終了時に全てを忘れる。                    │
+│  「DBはPostgreSQL」「認証はJWT」などの決定事項が失われる。          │
+│                                                                     │
+│  【Memory Bankの役割】                                               │
+│  プロジェクトの決定事項・ルールを保存し、                           │
+│  次回セッション開始時にAIに渡す。                                   │
+│                                                                     │
+│  【保存しないもの】                                                  │
+│  - セッションの詳細ログ（→ Session Log 機能で別途対応）             │
+│  - タスクの途中経過（→ AIがコードベースから推測可能）               │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
 
 ## 設計目標
 
-1. **コンテキストの永続化**: セッション間で情報を失わない
-2. **人間可読**: Markdownで人間も読める
-3. **Git連携**: 履歴管理・差分確認が可能
-4. **自動要約**: 長大化したコンテキストを自動圧縮
+1. **決定事項の永続化**: プロジェクトの「なぜ」を記録
+2. **AIへの自動注入**: セッション開始時にコンテキストとして渡す
+3. **人間可読**: 人間も確認・編集可能
+4. **シンプル**: 必要最小限の情報のみ保存
 
-## アーキテクチャ
+## データモデル
 
+### プロジェクト決定事項
+
+```typescript
+// カテゴリ
+type DecisionCategory =
+  | 'architecture'  // アーキテクチャ（DB、フレームワーク等）
+  | 'tooling'       // ツール（テスト、リンター等）
+  | 'convention'    // 規約（コーディングスタイル等）
+  | 'rule'          // ルール（必須事項等）
+  ;
+
+// 決定事項
+interface ProjectDecision {
+  id: number;
+  category: DecisionCategory;
+  title: string;           // "データベース選定"
+  decision: string;        // "PostgreSQLを使用"
+  reason?: string;         // "pgvectorでAI機能が使えるため"
+  createdAt: Date;
+  updatedAt?: Date;
+}
 ```
-.agentmine/
-└── memory/
-    ├── project.md           # プロジェクト全体のコンテキスト
-    ├── sessions/
-    │   ├── session-001.md   # セッション別ログ
-    │   ├── session-002.md
-    │   └── ...
-    └── tasks/
-        ├── task-001.md      # タスク別コンテキスト
-        ├── task-002.md
-        └── ...
+
+### DBスキーマ
+
+```typescript
+export const projectDecisions = sqliteTable('project_decisions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+
+  category: text('category', {
+    enum: ['architecture', 'tooling', 'convention', 'rule']
+  }).notNull(),
+
+  title: text('title').notNull(),
+  decision: text('decision').notNull(),
+  reason: text('reason'),
+
+  // 関連情報
+  relatedTaskId: integer('related_task_id').references(() => tasks.id),
+
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .default(sql`(unixepoch())`),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }),
+});
 ```
 
-## ファイル構造
+## 使用例
 
-### project.md
+### 決定事項の保存
+
+```typescript
+// サービス経由で保存
+await memoryService.addDecision({
+  category: 'architecture',
+  title: 'データベース',
+  decision: 'PostgreSQL（本番）、SQLite（ローカル）',
+  reason: 'pgvectorによるAI機能の親和性',
+});
+
+await memoryService.addDecision({
+  category: 'tooling',
+  title: '認証方式',
+  decision: 'JWT + Refresh Token',
+  reason: 'ステートレス、スケーラブル',
+});
+
+await memoryService.addDecision({
+  category: 'rule',
+  title: 'テスト必須',
+  decision: 'バグ修正時はregression testを追加すること',
+});
+```
+
+### エージェントへの注入
+
+```typescript
+// タスク開始時に決定事項をコンテキストとして渡す
+async function buildAgentContext(task: Task): Promise<string> {
+  const decisions = await db.select().from(projectDecisions);
+
+  // カテゴリ別にグループ化
+  const grouped = groupBy(decisions, d => d.category);
+
+  return `
+## プロジェクト決定事項
+
+${Object.entries(grouped).map(([category, items]) => `
+### ${categoryLabel(category)}
+${items.map(d => `
+- **${d.title}**: ${d.decision}
+${d.reason ? `  - 理由: ${d.reason}` : ''}
+`).join('')}
+`).join('')}
+
+## タスク
+**${task.title}**
+${task.description || ''}
+`;
+}
+```
+
+### 生成されるコンテキスト例
 
 ```markdown
-# Project Context
+## プロジェクト決定事項
 
-## Overview
-プロジェクト名: My Project
-最終更新: 2025-01-15 10:30:00
+### アーキテクチャ
+- **データベース**: PostgreSQL（本番）、SQLite（ローカル）
+  - 理由: pgvectorによるAI機能の親和性
 
-## Architecture Decisions
+### ツール
+- **認証方式**: JWT + Refresh Token
+  - 理由: ステートレス、スケーラブル
 
-### ADR-001: 認証方式
-- **決定**: JWT + Refresh Token
-- **理由**: ステートレス、スケーラブル
-- **日付**: 2025-01-10
-- **セッション**: #42
+### ルール
+- **テスト必須**: バグ修正時はregression testを追加すること
 
-### ADR-002: データベース
-- **決定**: PostgreSQL
-- **理由**: チーム共有が必要
-- **日付**: 2025-01-12
-- **セッション**: #45
-
-## Current State
-
-### 完了済み
-- ユーザー認証基盤 (Task #1)
-- API基本設計 (Task #2)
-
-### 進行中
-- ダッシュボード実装 (Task #5)
-
-### 次のステップ
-- テスト追加
-- CI/CD設定
-
-## Known Issues
-- パフォーマンス最適化が必要（Task #10で対応予定）
+## タスク
+**ログイン機能を実装**
+POST /api/login でJWTトークンを返すAPIを実装してください。
 ```
 
-### session-{id}.md
+## CLI
 
-```markdown
-# Session #42
+```bash
+# 決定事項一覧
+agentmine memory list
+agentmine memory list --category architecture
 
-## Metadata
-- **開始**: 2025-01-15 09:00:00
-- **終了**: 2025-01-15 10:30:00
-- **エージェント**: coder
-- **タスク**: #5 (ダッシュボード実装)
-- **トークン使用量**: 15,234
+# 決定事項追加
+agentmine memory add \
+  --category tooling \
+  --title "テストフレームワーク" \
+  --decision "Vitest" \
+  --reason "高速、Vite互換"
 
-## Input
-ダッシュボードのUIを実装してください。Reactコンポーネントで作成し、
-APIからデータを取得して表示してください。
+# 決定事項編集
+agentmine memory edit 1 --decision "PostgreSQL + pgvector"
 
-## Summary
-ダッシュボードの基本UIを実装。以下のコンポーネントを作成：
-- Dashboard.tsx: メインコンポーネント
-- StatsCard.tsx: 統計カード
-- RecentActivity.tsx: 最近のアクティビティ
+# 決定事項削除
+agentmine memory remove 1
 
-## Decisions Made
-1. **状態管理**: React Query採用（サーバー状態に特化）
-2. **スタイリング**: Tailwind CSS + shadcn/ui
-
-## Files Changed
-- src/components/Dashboard.tsx (created)
-- src/components/StatsCard.tsx (created)
-- src/components/RecentActivity.tsx (created)
-- src/hooks/useDashboardData.ts (created)
-
-## Errors Encountered
-- API型定義の不整合 → types/api.ts を修正
-
-## Next Steps
-- レスポンシブ対応
-- ローディング状態の改善
-- エラーハンドリング追加
-
-## Handover Notes
-次のセッションでは、レスポンシブ対応から始めてください。
-モバイル幅は375pxを基準にしています。
-```
-
-### task-{id}.md
-
-```markdown
-# Task #5: ダッシュボード実装
-
-## Overview
-- **ステータス**: in_progress
-- **担当**: coder (AI)
-- **作成日**: 2025-01-10
-- **ブランチ**: task-5-dashboard
-
-## Requirements
-- ユーザーの統計情報を表示
-- 最近のアクティビティを一覧表示
-- レスポンシブデザイン
-
-## Progress
-
-### Session #42 (2025-01-15)
-- 基本UIコンポーネント作成
-- API連携実装
-
-### Session #45 (2025-01-16)
-- レスポンシブ対応
-- テスト追加
-
-## Technical Notes
-- React Query for data fetching
-- shadcn/ui for components
-- Tailwind CSS for styling
-
-## Related Tasks
-- 依存: Task #2 (API設計)
-- 関連: Task #7 (グラフ表示)
+# コンテキストプレビュー（AIに渡される内容を確認）
+agentmine memory preview
 ```
 
 ## API
@@ -157,149 +184,84 @@ APIからデータを取得して表示してください。
 ### MemoryService
 
 ```typescript
-// packages/core/src/services/memory-service.ts
-
 export class MemoryService {
-  constructor(private basePath: string) {}
+  // 決定事項
+  async listDecisions(category?: DecisionCategory): Promise<ProjectDecision[]>;
+  async addDecision(decision: NewDecision): Promise<ProjectDecision>;
+  async updateDecision(id: number, updates: Partial<ProjectDecision>): Promise<void>;
+  async removeDecision(id: number): Promise<void>;
 
-  // プロジェクトコンテキスト
-  async getProjectContext(): Promise<ProjectContext>;
-  async updateProjectContext(updates: Partial<ProjectContext>): Promise<void>;
-  async addDecision(decision: Decision): Promise<void>;
-
-  // セッション
-  async createSession(session: NewSession): Promise<Session>;
-  async getSession(id: number): Promise<Session>;
-  async updateSession(id: number, updates: SessionUpdate): Promise<void>;
-  async finalizeSession(id: number, summary: SessionSummary): Promise<void>;
-
-  // タスクコンテキスト
-  async getTaskContext(taskId: number): Promise<TaskContext>;
-  async updateTaskContext(taskId: number, updates: TaskContextUpdate): Promise<void>;
-
-  // コンテキスト復元
-  async loadContext(options: LoadContextOptions): Promise<string>;
-  
-  // 自動要約
-  async summarizeIfNeeded(sessionId: number): Promise<void>;
+  // コンテキスト生成
+  async buildContext(task: Task): Promise<string>;
 }
-```
-
-### 使用例
-
-```typescript
-const memory = new MemoryService('.agentmine/memory');
-
-// セッション開始
-const session = await memory.createSession({
-  taskId: 5,
-  agentName: 'coder',
-  input: 'ダッシュボードを実装してください',
-});
-
-// 決定を記録
-await memory.addDecision({
-  title: '状態管理',
-  decision: 'React Query採用',
-  reason: 'サーバー状態に特化',
-  sessionId: session.id,
-});
-
-// セッション終了
-await memory.finalizeSession(session.id, {
-  summary: '基本UIコンポーネントを作成',
-  filesChanged: ['Dashboard.tsx', 'StatsCard.tsx'],
-  nextSteps: ['レスポンシブ対応', 'テスト追加'],
-});
-
-// コンテキスト読み込み
-const context = await memory.loadContext({
-  taskId: 5,
-  includeProjectContext: true,
-  includeRecentSessions: 3,
-});
-```
-
-## CLI
-
-```bash
-# コンテキスト表示
-agentmine context show
-agentmine context show --task 5
-agentmine context show --session 42
-
-# コンテキスト読み込み（AIエージェント向け）
-agentmine context load --task 5
-
-# 手動保存
-agentmine context save --message "認証実装完了"
-
-# 要約実行
-agentmine context summarize --task 5
-```
-
-## 自動要約
-
-トークン数が閾値を超えた場合、自動的に要約を実行。
-
-```yaml
-# config.yaml
-memory:
-  autoSave: true
-  summarizeAfter: 50000  # tokens
-  keepRecentSessions: 5  # 詳細を保持するセッション数
-```
-
-### 要約プロセス
-
-```
-1. トークン数チェック
-2. 閾値超過 → 要約実行
-3. 古いセッションを圧縮
-   - 詳細ログ → サマリーのみ
-   - ファイル変更 → 変更リストのみ
-4. project.md を更新
-```
-
-## Git連携
-
-```bash
-# Memory Bankの変更をコミット
-git add .agentmine/memory/
-git commit -m "chore(memory): セッション#42のコンテキスト保存"
-
-# 差分確認
-git diff .agentmine/memory/project.md
 ```
 
 ## MCP統合
 
 ```typescript
-// MCP Tool: context_load
+// MCP Tool: memory_list
 {
-  name: "context_load",
-  description: "Load context for a task or session",
+  name: "memory_list",
+  description: "List project decisions",
   inputSchema: {
     type: "object",
     properties: {
-      taskId: { type: "number" },
-      sessionId: { type: "number" },
-      includeProject: { type: "boolean", default: true },
+      category: {
+        type: "string",
+        enum: ["architecture", "tooling", "convention", "rule"]
+      },
     },
   },
 }
 
-// MCP Tool: context_save
+// MCP Tool: memory_add
 {
-  name: "context_save",
-  description: "Save current context",
+  name: "memory_add",
+  description: "Add a project decision",
   inputSchema: {
     type: "object",
     properties: {
-      summary: { type: "string" },
-      decisions: { type: "array", items: { type: "object" } },
-      nextSteps: { type: "array", items: { type: "string" } },
+      category: { type: "string", required: true },
+      title: { type: "string", required: true },
+      decision: { type: "string", required: true },
+      reason: { type: "string" },
     },
   },
 }
 ```
+
+## 将来の拡張
+
+### ベクトル検索（Phase 2）
+
+必要に応じて、決定事項のセマンティック検索を追加可能。
+
+```typescript
+// PostgreSQL + pgvector
+export const projectDecisions = pgTable('project_decisions', {
+  // ... 既存フィールド
+
+  // ベクトル埋め込み（将来追加）
+  embedding: vector('embedding', { dimensions: 1536 }),
+});
+
+// 類似検索
+const similar = await db.execute(sql`
+  SELECT * FROM project_decisions
+  ORDER BY embedding <=> ${queryVector}
+  LIMIT 5
+`);
+```
+
+### Session Log（別機能）
+
+セッションの詳細ログは別機能として実装予定。
+
+- 何をしたかの記録（人間向け）
+- デバッグ・監査用
+- Memory Bankとは独立
+
+## References
+
+- [ADR-002: Database Strategy](../adr/002-sqlite-default.md)
+- [Agent Execution](./agent-execution.md)

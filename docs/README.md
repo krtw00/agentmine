@@ -14,7 +14,9 @@
 
 - [Agent Execution](./features/agent-execution.md) - **エージェント実行フロー（詳細）**
 - [Agent System](./features/agent-system.md) - エージェント定義・実行
-- [Memory Bank](./features/memory-bank.md) - コンテキスト永続化
+- [Authentication](./features/authentication.md) - 認証・認可
+- [Error Handling](./features/error-handling.md) - エラーハンドリング・リカバリー
+- [Memory Bank](./features/memory-bank.md) - プロジェクト決定事項の永続化
 - [Parallel Execution](./features/parallel-execution.md) - 並列タスク実行
 - [Task Decomposition](./features/task-decomposition.md) - PRD→タスク分解
 - [Skill System](./features/skill-system.md) - スキル管理
