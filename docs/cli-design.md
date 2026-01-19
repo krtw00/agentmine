@@ -135,7 +135,7 @@ Arguments:
   title               タスクタイトル
 
 Options:
-  -d, --description <text>  説明
+  -d, --description <text>  説明（詳細な要件をここに記述）
   -p, --priority <level>    low | medium | high | critical (default: medium)
   -t, --type <type>         task | feature | bug | refactor (default: task)
   --parent <id>             親タスクID
@@ -149,7 +149,13 @@ Examples:
   agentmine task add "認証機能実装"
   agentmine task add "バグ修正" -p critical -t bug
   agentmine task add "APIリファクタ" --assignee coder --ai
+
+  # 詳細な要件を記述（推奨）
+  agentmine task add "Agents画面実装" -t feature \
+    -d "AgentServiceから一覧取得、YAMLエディタで編集可能にする。モックデータは使用しない。"
 ```
+
+**Note:** `--description`にWorkerが理解できる具体的な要件を記述することを推奨。詳細なプロジェクトルールはMemory Bankに、エージェント固有の指示はpromptFileに記述。
 
 **出力例:**
 
@@ -563,14 +569,16 @@ Arguments:
   task-id             タスクID
 
 Options:
+  -a, --agent <name>  エージェント名（promptFile含める場合に必要）
   --json              JSON出力
 
 Examples:
   agentmine worker prompt 1
-  agentmine worker prompt 1 --json
+  agentmine worker prompt 1 --agent webui-coder
+  agentmine worker prompt 1 --agent coder --json
 ```
 
-**動作:** タスク情報とMemory Bankコンテキストからプロンプトを生成して表示。
+**動作:** タスク情報、エージェントのpromptFile、Memory Bank参照情報からWorkerプロンプトを生成して表示。`worker run`で実際に渡されるプロンプトを事前確認できる。
 
 ### worker context
 

@@ -93,9 +93,17 @@ git branch task-5-auth develop
 # 2. worktree作成（sparse-checkout有効）
 git worktree add --sparse .worktrees/task-5 task-5-auth
 
-# 3. sparse-checkout設定（exclude対象を除外）
+# 3. sparse-checkout設定（exclude対象を除外、Memory Bankは含める）
 cd .worktrees/task-5
-git sparse-checkout set --no-cone '/*' '!**/*.env' '!**/secrets/**' '!.git/**'
+git sparse-checkout set --no-cone \
+  '/*' \
+  '.agentmine/memory/**' \
+  '!.agentmine/agents/**' \
+  '!.agentmine/config.yaml' \
+  '!.agentmine/prompts/**' \
+  '!**/*.env' \
+  '!**/secrets/**' \
+  '!.git/**'
 
 # 4. write対象外をread-only化
 # Unix/macOS
@@ -244,6 +252,13 @@ async function getChangedFiles(worktreePath: string): Promise<string[]> {
 ```
 .worktrees/
 ├── task-5/                     # タスク#5用
+│   ├── .agentmine/
+│   │   └── memory/             # Memory Bank（参照用、read-only）
+│   │       ├── architecture/
+│   │       │   └── tech-stack.md
+│   │       └── convention/
+│   │           └── coding-style.md
+│   │   # agents/, config.yaml, prompts/ は存在しない（sparse-checkout）
 │   ├── .claude/                # Claude Code設定
 │   │   ├── settings.json
 │   │   └── CLAUDE.md           # promptFileから生成
@@ -258,6 +273,8 @@ async function getChangedFiles(worktreePath: string): Promise<string[]> {
 ├── task-6/                     # タスク#6用
 │   └── ...
 ```
+
+**Note:** `.agentmine/memory/`はWorkerがプロジェクト決定事項を参照するために含まれる。エージェント定義（`agents/`）や設定（`config.yaml`）は除外。
 
 ## セキュリティ考慮事項
 

@@ -149,6 +149,98 @@ Orchestrator                    agentmine                    Worker
  │                                   │                           │
 ```
 
+## Workerプロンプト生成
+
+### buildPromptFromTask()
+
+`worker run`コマンド実行時、以下の情報を統合してWorkerプロンプトを生成する。
+
+```typescript
+interface BuildPromptOptions {
+  task: Task;
+  agent: AgentDefinition;
+  memoryService: MemoryService;
+  agentService: AgentService;
+}
+
+async function buildPromptFromTask(options: BuildPromptOptions): Promise<string> {
+  const { task, agent, memoryService, agentService } = options;
+  const parts: string[] = [];
+
+  // 1. タスク基本情報
+  parts.push(`# Task #${task.id}: ${task.title}`);
+  parts.push(`Type: ${task.type} | Priority: ${task.priority}`);
+
+  // 2. 説明
+  if (task.description) {
+    parts.push('## Description');
+    parts.push(task.description);
+  }
+
+  // 3. エージェント専用プロンプト（promptFile展開）
+  const promptContent = agentService.getPromptFileContent(agent);
+  if (promptContent) {
+    parts.push('## Agent Instructions');
+    parts.push(promptContent);
+  }
+
+  // 4. スコープ情報
+  parts.push('## Scope');
+  parts.push(`- Read: ${agent.scope.read.join(', ')}`);
+  parts.push(`- Write: ${agent.scope.write.join(', ')}`);
+  parts.push(`- Exclude: ${agent.scope.exclude.join(', ')}`);
+
+  // 5. Memory Bank（参照方式 - ファイルパスのみ）
+  const memoryFiles = memoryService.listFiles();
+  if (memoryFiles.length > 0) {
+    parts.push('## Project Context (Memory Bank)');
+    parts.push('The following project decision files are available:');
+    for (const file of memoryFiles) {
+      parts.push(`- ${file.path} - ${file.title}`);
+    }
+    parts.push('');
+    parts.push('Read these files in .agentmine/memory/ for detailed project decisions.');
+  }
+
+  // 6. 基本指示
+  parts.push('## Instructions');
+  parts.push('1. 既存の実装パターンを確認してから作業開始');
+  parts.push('2. モックデータは作成しない - 必ず既存サービスを使用');
+  parts.push('3. テストが全てパスすることを確認');
+  parts.push('4. 完了したらコミット');
+
+  return parts.join('\n\n');
+}
+```
+
+### プロンプト構成要素
+
+| セクション | 内容 | 出典 | 展開方式 |
+|-----------|------|------|----------|
+| Task Header | タスクID、タイトル、タイプ、優先度 | tasks テーブル | 全文 |
+| Description | タスクの詳細説明 | tasks.description | 全文 |
+| Agent Instructions | エージェント固有の詳細指示 | prompts/*.md | 全文展開 |
+| Scope | ファイルアクセス範囲 | agents/*.yaml | 全文 |
+| Project Context | プロジェクト決定事項 | memory/*.md | **参照のみ** |
+| Instructions | 共通の作業指示 | ハードコード | 全文 |
+
+**Note:** Memory Bankはコンテキスト長削減のため参照方式（ファイルパスのみ）。Workerがworktree内の`.agentmine/memory/`を直接読むことで詳細を確認できる。
+
+### コンテキスト不足による問題と対策
+
+**問題:** Workerが十分なコンテキストを受け取らないと、モックデータを作成してしまう。
+
+| 問題 | 原因 | 対策 |
+|------|------|------|
+| モックデータ作成 | 既存サービスの存在を知らない | promptFileに利用可能サービスを明記 |
+| 不適切な実装 | プロジェクト規約を知らない | Memory Bankファイルの参照を促す |
+| 汎用的すぎる指示 | エージェント固有指示がない | promptFile必須化 |
+
+**ベストプラクティス:**
+1. タスク作成時に`--description`で具体的な要件を記述
+2. エージェントごとに詳細なpromptFileを用意（禁止事項、サービス利用例を含む）
+3. Memory Bankにプロジェクト決定事項を充実させる（Workerが参照できる）
+
 ## Worktree + スコープ制御
 
 ### sparse-checkoutによるスコープ適用

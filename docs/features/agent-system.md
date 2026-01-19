@@ -212,6 +212,48 @@ Orchestratorから割り当てられたタスクを実装してください。
 - ファイルの変更は行わない（レビューコメントのみ）
 ```
 
+### プロンプトファイルのWorkerプロンプトへの展開
+
+`worker run`実行時、エージェントの`promptFile`内容は**Agent Instructions**セクションとしてWorkerプロンプトに展開される。
+
+```
+Workerプロンプト構成:
+┌─────────────────────────────────────┐
+│ # Task #1: タスクタイトル           │
+│ Type: feature | Priority: high      │
+├─────────────────────────────────────┤
+│ ## Description                      │
+│ タスクの説明文                       │
+├─────────────────────────────────────┤
+│ ## Agent Instructions               │  ← promptFile内容がここに展開
+│ [prompts/coder.mdの全文]            │
+├─────────────────────────────────────┤
+│ ## Scope                            │
+│ - Read: **/*                        │
+│ - Write: src/**, tests/**           │
+│ - Exclude: **/*.env                 │
+├─────────────────────────────────────┤
+│ ## Project Context (Memory Bank)    │  ← 参照方式（ファイルパスのみ）
+│ - architecture/tech-stack.md        │
+│ - convention/coding-style.md        │
+│ Read files in .agentmine/memory/    │
+├─────────────────────────────────────┤
+│ ## Instructions                     │
+│ 1. 既存の実装パターンを確認          │
+│ 2. モックデータは作成しない          │
+│ 3. テストが全てパスすることを確認    │
+│ 4. 完了したらコミット               │
+└─────────────────────────────────────┘
+```
+
+**Note:** Memory Bankはコンテキスト長削減のため参照方式を採用。Workerはworktree内の`.agentmine/memory/`ディレクトリから必要なファイルを直接読み込める。
+
+**重要:** promptFileはWorkerが正しく動作するための詳細な指示を含むべき。特に：
+- **禁止事項**（モックデータ作成禁止、スコープ外変更禁止等）
+- **利用すべきサービス/API**（既存のサービス層を使用する指示）
+- **コーディング規約**（プロジェクト固有のルール）
+- **具体的な実装パターン**（コード例を含む）
+
 ## スコープ制御
 
 ### 概要
@@ -316,6 +358,9 @@ export class AgentService {
 
   // エージェント定義をコンテキストとして出力（Orchestrator向け）
   async getAgentContext(name: string): Promise<string>;
+
+  // プロンプトファイル内容を取得（Workerプロンプト生成用）
+  getPromptFileContent(agent: Agent): string | null;
 }
 ```
 

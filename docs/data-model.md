@@ -103,7 +103,7 @@ export const tasks = sqliteTable('tasks', {
   
   branchName: text('branch_name'),
   prUrl: text('pr_url'),
-  
+
   complexity: integer('complexity'), // 1-10
   
   createdAt: integer('created_at', { mode: 'timestamp' })
