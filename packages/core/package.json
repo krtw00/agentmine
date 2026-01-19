@@ -17,6 +17,10 @@
     "./schema": {
       "types": "./dist/db/schema.d.ts",
       "import": "./dist/db/schema.js"
+    },
+    "./services": {
+      "types": "./dist/services/index.d.ts",
+      "import": "./dist/services/index.js"
     }
   },
   "scripts": {
@@ -29,12 +33,11 @@
   },
   "dependencies": {
     "drizzle-orm": "^0.38.3",
-    "better-sqlite3": "^11.7.0",
-    "postgres": "^3.4.5",
-    "zod": "^3.24.1"
+    "@libsql/client": "^0.14.0",
+    "zod": "^3.24.1",
+    "yaml": "^2.7.0"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.10.5",
     "drizzle-kit": "^0.30.1",
     "tsup": "^8.3.5",

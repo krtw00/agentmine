@@ -1,256 +1,226 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core'
-import { pgTable, varchar, serial, timestamp, text as pgText, integer as pgInteger } from 'drizzle-orm/pg-core'
+import { sqliteTable, text, integer, unique } from 'drizzle-orm/sqlite-core'
 import { sql } from 'drizzle-orm'
 
 // ============================================
-// SQLite Schema
+// SQLite Schema (Primary for local development)
 // ============================================
 
-export const sqliteProjects = sqliteTable('projects', {
+/**
+ * Projects table
+ * Note: agentmineは1プロジェクト=1ディレクトリの原則
+ * このテーブルは将来の拡張用（複数プロジェクト管理）
+ */
+export const projects = sqliteTable('projects', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  name: text('name').notNull().unique(),
-  path: text('path').notNull(),
+  name: text('name').notNull(),
   description: text('description'),
-  createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  updatedAt: integer('updated_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
 })
 
-export const sqliteTasks = sqliteTable('tasks', {
+/**
+ * Tasks table
+ * タスク管理の中心テーブル
+ */
+export const tasks = sqliteTable('tasks', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  projectId: integer('project_id').notNull().references(() => sqliteProjects.id),
+  projectId: integer('project_id').references(() => projects.id),
+  parentId: integer('parent_id'), // self-reference handled at application level
+
   title: text('title').notNull(),
   description: text('description'),
-  status: text('status', { enum: ['open', 'in_progress', 'review', 'done', 'cancelled'] }).notNull().default('open'),
-  priority: text('priority', { enum: ['low', 'medium', 'high', 'critical'] }).notNull().default('medium'),
-  type: text('type', { enum: ['task', 'feature', 'bug', 'refactor'] }).notNull().default('task'),
-  assigneeType: text('assignee_type', { enum: ['ai', 'human'] }),
+
+  status: text('status', {
+    enum: ['open', 'in_progress', 'done', 'failed', 'cancelled']
+  }).notNull().default('open'),
+
+  priority: text('priority', {
+    enum: ['low', 'medium', 'high', 'critical']
+  }).notNull().default('medium'),
+
+  type: text('type', {
+    enum: ['task', 'feature', 'bug', 'refactor']
+  }).notNull().default('task'),
+
+  assigneeType: text('assignee_type', {
+    enum: ['ai', 'human']
+  }),
   assigneeName: text('assignee_name'),
+
   branchName: text('branch_name'),
   prUrl: text('pr_url'),
-  parentId: integer('parent_id'),
-  createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
-  startedAt: text('started_at'),
-  completedAt: text('completed_at'),
+
+  complexity: integer('complexity'), // 1-10
+
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  updatedAt: integer('updated_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
 })
 
-export const sqliteHistories = sqliteTable('histories', {
+/**
+ * Sessions table
+ * エージェント実行セッションの記録
+ * 1タスク1セッション制約（UNIQUE）
+ */
+export const sessions = sqliteTable('sessions', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  taskId: integer('task_id').notNull().references(() => sqliteTasks.id),
-  action: text('action').notNull(),
-  actorType: text('actor_type', { enum: ['ai', 'human'] }).notNull(),
-  actorName: text('actor_name').notNull(),
-  oldValue: text('old_value'),
-  newValue: text('new_value'),
-  comment: text('comment'),
-  createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
-})
 
-export const sqliteAgents = sqliteTable('agents', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  projectId: integer('project_id').references(() => sqliteProjects.id),
-  name: text('name').notNull(),
-  description: text('description'),
-  model: text('model').default('claude-sonnet'),
-  tools: text('tools'), // JSON array
-  skills: text('skills'), // JSON array
-  systemPrompt: text('system_prompt'),
-  createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
-})
-
-export const sqliteSkills = sqliteTable('skills', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  projectId: integer('project_id').references(() => sqliteProjects.id),
-  name: text('name').notNull(),
-  description: text('description'),
-  source: text('source', { enum: ['builtin', 'local', 'remote'] }).notNull().default('local'),
-  path: text('path'),
-  url: text('url'),
-  prompt: text('prompt'),
-  createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
-})
-
-export const sqliteSessions = sqliteTable('sessions', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  taskId: integer('task_id').references(() => sqliteTasks.id),
+  taskId: integer('task_id')
+    .references(() => tasks.id)
+    .unique(), // 1タスク1セッション制約
   agentName: text('agent_name').notNull(),
-  status: text('status', { enum: ['running', 'completed', 'failed', 'cancelled'] }).notNull().default('running'),
-  input: text('input'),
-  output: text('output'),
-  tokenUsage: integer('token_usage'),
-  startedAt: text('started_at').default(sql`CURRENT_TIMESTAMP`),
-  completedAt: text('completed_at'),
+
+  status: text('status', {
+    enum: ['running', 'completed', 'failed', 'cancelled']
+  }).notNull().default('running'),
+
+  // 実行時間
+  startedAt: integer('started_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  completedAt: integer('completed_at', { mode: 'timestamp' }),
+  durationMs: integer('duration_ms'),
+
+  // Worker終了情報（観測可能な事実）
+  exitCode: integer('exit_code'),
+  signal: text('signal'), // SIGTERM, SIGKILL等
+
+  // DoD判定結果
+  dodResult: text('dod_result', {
+    enum: ['pending', 'merged', 'timeout', 'error']
+  }).default('pending'),
+
+  // 成果物（JSON配列: 変更されたファイルパス）
+  artifacts: text('artifacts', { mode: 'json' })
+    .$type<string[]>()
+    .default([]),
+
+  // エラー情報（JSON: 失敗時の詳細）
+  error: text('error', { mode: 'json' })
+    .$type<SessionError | null>()
+    .default(null),
+})
+
+/**
+ * Project decisions table
+ * プロジェクトの決定事項（Memory Bank の補助）
+ */
+export const projectDecisions = sqliteTable('project_decisions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+
+  category: text('category', {
+    enum: ['architecture', 'tooling', 'convention', 'rule']
+  }).notNull(),
+
+  title: text('title').notNull(),
+  decision: text('decision').notNull(),
+  reason: text('reason'),
+
+  relatedTaskId: integer('related_task_id').references(() => tasks.id),
+
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }),
 })
 
 // ============================================
-// PostgreSQL Schema
+// Type definitions
 // ============================================
 
-export const pgProjects = pgTable('projects', {
-  id: serial('id').primaryKey(),
-  name: varchar('name', { length: 255 }).notNull().unique(),
-  path: varchar('path', { length: 1024 }).notNull(),
-  description: pgText('description'),
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow(),
-})
-
-export const pgTasks = pgTable('tasks', {
-  id: serial('id').primaryKey(),
-  projectId: pgInteger('project_id').notNull().references(() => pgProjects.id),
-  title: varchar('title', { length: 500 }).notNull(),
-  description: pgText('description'),
-  status: varchar('status', { length: 20 }).notNull().default('open'),
-  priority: varchar('priority', { length: 20 }).notNull().default('medium'),
-  type: varchar('type', { length: 20 }).notNull().default('task'),
-  assigneeType: varchar('assignee_type', { length: 10 }),
-  assigneeName: varchar('assignee_name', { length: 255 }),
-  branchName: varchar('branch_name', { length: 255 }),
-  prUrl: varchar('pr_url', { length: 1024 }),
-  parentId: pgInteger('parent_id'),
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow(),
-  startedAt: timestamp('started_at'),
-  completedAt: timestamp('completed_at'),
-})
-
-export const pgHistories = pgTable('histories', {
-  id: serial('id').primaryKey(),
-  taskId: pgInteger('task_id').notNull().references(() => pgTasks.id),
-  action: varchar('action', { length: 50 }).notNull(),
-  actorType: varchar('actor_type', { length: 10 }).notNull(),
-  actorName: varchar('actor_name', { length: 255 }).notNull(),
-  oldValue: pgText('old_value'),
-  newValue: pgText('new_value'),
-  comment: pgText('comment'),
-  createdAt: timestamp('created_at').defaultNow(),
-})
-
-export const pgAgents = pgTable('agents', {
-  id: serial('id').primaryKey(),
-  projectId: pgInteger('project_id').references(() => pgProjects.id),
-  name: varchar('name', { length: 100 }).notNull(),
-  description: pgText('description'),
-  model: varchar('model', { length: 100 }).default('claude-sonnet'),
-  tools: pgText('tools'), // JSON array
-  skills: pgText('skills'), // JSON array
-  systemPrompt: pgText('system_prompt'),
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow(),
-})
-
-export const pgSkills = pgTable('skills', {
-  id: serial('id').primaryKey(),
-  projectId: pgInteger('project_id').references(() => pgProjects.id),
-  name: varchar('name', { length: 100 }).notNull(),
-  description: pgText('description'),
-  source: varchar('source', { length: 20 }).notNull().default('local'),
-  path: varchar('path', { length: 1024 }),
-  url: varchar('url', { length: 1024 }),
-  prompt: pgText('prompt'),
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow(),
-})
-
-export const pgSessions = pgTable('sessions', {
-  id: serial('id').primaryKey(),
-  taskId: pgInteger('task_id').references(() => pgTasks.id),
-  agentName: varchar('agent_name', { length: 100 }).notNull(),
-  status: varchar('status', { length: 20 }).notNull().default('running'),
-  input: pgText('input'),
-  output: pgText('output'),
-  tokenUsage: pgInteger('token_usage'),
-  startedAt: timestamp('started_at').defaultNow(),
-  completedAt: timestamp('completed_at'),
-})
-
-// ============================================
-// Type exports (database-agnostic)
-// ============================================
-
-export type TaskStatus = 'open' | 'in_progress' | 'review' | 'done' | 'cancelled'
+export type TaskStatus = 'open' | 'in_progress' | 'done' | 'failed' | 'cancelled'
 export type TaskPriority = 'low' | 'medium' | 'high' | 'critical'
 export type TaskType = 'task' | 'feature' | 'bug' | 'refactor'
 export type AssigneeType = 'ai' | 'human'
-export type SkillSource = 'builtin' | 'local' | 'remote'
 export type SessionStatus = 'running' | 'completed' | 'failed' | 'cancelled'
+export type DodResult = 'pending' | 'merged' | 'timeout' | 'error'
+export type DecisionCategory = 'architecture' | 'tooling' | 'convention' | 'rule'
 
-export type Project = {
-  id: number
+export interface SessionError {
+  type: 'timeout' | 'crash' | 'signal' | 'unknown'
+  message: string
+  details?: Record<string, unknown>
+}
+
+// Inferred types from schema
+export type Project = typeof projects.$inferSelect
+export type NewProject = typeof projects.$inferInsert
+
+export type Task = typeof tasks.$inferSelect
+export type NewTask = typeof tasks.$inferInsert
+
+export type Session = typeof sessions.$inferSelect
+export type NewSession = typeof sessions.$inferInsert
+
+export type ProjectDecision = typeof projectDecisions.$inferSelect
+export type NewProjectDecision = typeof projectDecisions.$inferInsert
+
+// ============================================
+// Agent definition (from YAML, not DB)
+// ============================================
+
+/**
+ * Agent定義はYAMLファイル（.agentmine/agents/*.yaml）で管理
+ * DBには保存しない
+ */
+export interface AgentDefinition {
   name: string
-  path: string
-  description: string | null
-  createdAt: string | Date | null
-  updatedAt: string | Date | null
+  description?: string
+  client: string // claude-code, opencode, codex等
+  model: string // opus, sonnet, haiku等
+  scope: {
+    read: string[] // 参照可能（globパターン）
+    write: string[] // 編集可能（globパターン）
+    exclude: string[] // アクセス不可（globパターン）
+  }
+  config?: {
+    temperature?: number
+    maxTokens?: number
+    promptFile?: string
+  }
 }
 
-export type Task = {
-  id: number
-  projectId: number
-  title: string
-  description: string | null
-  status: TaskStatus
-  priority: TaskPriority
-  type: TaskType
-  assigneeType: AssigneeType | null
-  assigneeName: string | null
-  branchName: string | null
-  prUrl: string | null
-  parentId: number | null
-  createdAt: string | Date | null
-  updatedAt: string | Date | null
-  startedAt: string | Date | null
-  completedAt: string | Date | null
-}
+// ============================================
+// Config definition (from YAML)
+// ============================================
 
-export type History = {
-  id: number
-  taskId: number
-  action: string
-  actorType: AssigneeType
-  actorName: string
-  oldValue: string | null
-  newValue: string | null
-  comment: string | null
-  createdAt: string | Date | null
-}
-
-export type Agent = {
-  id: number
-  projectId: number | null
-  name: string
-  description: string | null
-  model: string | null
-  tools: string | null
-  skills: string | null
-  systemPrompt: string | null
-  createdAt: string | Date | null
-  updatedAt: string | Date | null
-}
-
-export type Skill = {
-  id: number
-  projectId: number | null
-  name: string
-  description: string | null
-  source: SkillSource
-  path: string | null
-  url: string | null
-  prompt: string | null
-  createdAt: string | Date | null
-  updatedAt: string | Date | null
-}
-
-export type Session = {
-  id: number
-  taskId: number | null
-  agentName: string
-  status: SessionStatus
-  input: string | null
-  output: string | null
-  tokenUsage: number | null
-  startedAt: string | Date | null
-  completedAt: string | Date | null
+export interface AgentmineConfig {
+  project?: {
+    name?: string
+    description?: string
+  }
+  database?: {
+    url?: string // default: file:.agentmine/data.db
+  }
+  git: {
+    baseBranch: string
+    branchPrefix?: string // default: task-
+    commitConvention?: {
+      enabled?: boolean
+      format?: 'conventional' | 'simple' | 'custom'
+    }
+  }
+  execution?: {
+    parallel?: {
+      enabled?: boolean
+      maxWorkers?: number
+      worktree?: {
+        path?: string
+        cleanup?: boolean
+      }
+    }
+  }
+  sessionLog?: {
+    retention?: {
+      enabled?: boolean
+      days?: number
+    }
+  }
 }

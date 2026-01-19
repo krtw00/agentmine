@@ -1,94 +1,182 @@
-import { drizzle as drizzleSqlite } from 'drizzle-orm/better-sqlite3'
-import { drizzle as drizzlePostgres } from 'drizzle-orm/postgres-js'
-import Database from 'better-sqlite3'
-import postgres from 'postgres'
+import { drizzle } from 'drizzle-orm/libsql'
+import { createClient, type Client } from '@libsql/client'
 import * as schema from './schema.js'
-import { existsSync, mkdirSync } from 'fs'
-import { dirname } from 'path'
-import { homedir } from 'os'
-import { join } from 'path'
+import { existsSync, mkdirSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
+import { sql } from 'drizzle-orm'
 
-export type DatabaseType = 'sqlite' | 'postgres'
+// ============================================
+// Types
+// ============================================
 
-export interface DbConfig {
-  type: DatabaseType
-  url: string
+export type Db = ReturnType<typeof drizzle<typeof schema>>
+
+export interface DbOptions {
+  /** Database file path (default: .agentmine/data.db) */
+  path?: string
+  /** Project root directory (default: process.cwd()) */
+  projectRoot?: string
 }
 
-// Detect database type from URL
-export function detectDatabaseType(url: string): DatabaseType {
-  if (url.startsWith('postgres://') || url.startsWith('postgresql://')) {
-    return 'postgres'
-  }
-  return 'sqlite'
+// ============================================
+// Constants
+// ============================================
+
+export const AGENTMINE_DIR = '.agentmine'
+export const DEFAULT_DB_NAME = 'data.db'
+
+// ============================================
+// Module state
+// ============================================
+
+let dbInstance: Db | null = null
+let clientInstance: Client | null = null
+
+// ============================================
+// Database functions
+// ============================================
+
+/**
+ * Get the .agentmine directory path for a project
+ */
+export function getAgentmineDir(projectRoot: string = process.cwd()): string {
+  return join(projectRoot, AGENTMINE_DIR)
 }
 
-// Get default database path
-export function getDefaultDbPath(): string {
-  const agentmineDir = join(homedir(), '.agentmine')
-  if (!existsSync(agentmineDir)) {
-    mkdirSync(agentmineDir, { recursive: true })
-  }
-  return join(agentmineDir, 'data.db')
+/**
+ * Get the default database path for a project
+ */
+export function getDefaultDbPath(projectRoot: string = process.cwd()): string {
+  return join(getAgentmineDir(projectRoot), DEFAULT_DB_NAME)
 }
 
-// SQLite connection
-export function createSqliteDb(path: string) {
+/**
+ * Check if a project is initialized (has .agentmine directory)
+ */
+export function isProjectInitialized(projectRoot: string = process.cwd()): boolean {
+  return existsSync(getAgentmineDir(projectRoot))
+}
+
+/**
+ * Create SQLite database connection using libsql
+ */
+export function createDb(options: DbOptions = {}): Db {
+  const projectRoot = options.projectRoot ?? process.cwd()
+  const dbPath = options.path ?? getDefaultDbPath(projectRoot)
+  const absolutePath = resolve(projectRoot, dbPath)
+
   // Ensure directory exists
-  const dir = dirname(path)
+  const dir = dirname(absolutePath)
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true })
   }
 
-  const sqlite = new Database(path)
-  sqlite.pragma('journal_mode = WAL')
-
-  return drizzleSqlite(sqlite, {
-    schema: {
-      projects: schema.sqliteProjects,
-      tasks: schema.sqliteTasks,
-      histories: schema.sqliteHistories,
-      agents: schema.sqliteAgents,
-      skills: schema.sqliteSkills,
-      sessions: schema.sqliteSessions,
-    },
+  const client = createClient({
+    url: `file:${absolutePath}`,
   })
+
+  clientInstance = client
+  dbInstance = drizzle(client, { schema })
+
+  return dbInstance
 }
 
-// PostgreSQL connection
-export function createPostgresDb(url: string) {
-  const client = postgres(url)
-
-  return drizzlePostgres(client, {
-    schema: {
-      projects: schema.pgProjects,
-      tasks: schema.pgTasks,
-      histories: schema.pgHistories,
-      agents: schema.pgAgents,
-      skills: schema.pgSkills,
-      sessions: schema.pgSessions,
-    },
-  })
+/**
+ * Get the underlying libsql client
+ */
+export function getClient(): Client | null {
+  return clientInstance
 }
 
-// Unified database interface
-export type SqliteDb = ReturnType<typeof createSqliteDb>
-export type PostgresDb = ReturnType<typeof createPostgresDb>
-export type AnyDb = SqliteDb | PostgresDb
+/**
+ * Initialize database tables
+ * Creates tables if they don't exist
+ */
+export async function initializeDb(db: Db): Promise<void> {
+  // Create projects table
+  await db.run(sql`
+    CREATE TABLE IF NOT EXISTS projects (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      description TEXT,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+    )
+  `)
 
-// Create database connection based on config
-export function createDb(config?: DbConfig): { db: AnyDb; type: DatabaseType } {
-  const url = config?.url ?? process.env.DATABASE_URL ?? getDefaultDbPath()
-  const type = config?.type ?? detectDatabaseType(url)
+  // Create tasks table
+  await db.run(sql`
+    CREATE TABLE IF NOT EXISTS tasks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id INTEGER REFERENCES projects(id),
+      parent_id INTEGER REFERENCES tasks(id),
+      title TEXT NOT NULL,
+      description TEXT,
+      status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open', 'in_progress', 'done', 'failed', 'cancelled')),
+      priority TEXT NOT NULL DEFAULT 'medium' CHECK(priority IN ('low', 'medium', 'high', 'critical')),
+      type TEXT NOT NULL DEFAULT 'task' CHECK(type IN ('task', 'feature', 'bug', 'refactor')),
+      assignee_type TEXT CHECK(assignee_type IN ('ai', 'human')),
+      assignee_name TEXT,
+      branch_name TEXT,
+      pr_url TEXT,
+      complexity INTEGER,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+    )
+  `)
 
-  if (type === 'postgres') {
-    return { db: createPostgresDb(url), type: 'postgres' }
+  // Create sessions table
+  await db.run(sql`
+    CREATE TABLE IF NOT EXISTS sessions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id INTEGER UNIQUE REFERENCES tasks(id),
+      agent_name TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'running' CHECK(status IN ('running', 'completed', 'failed', 'cancelled')),
+      started_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      completed_at INTEGER,
+      duration_ms INTEGER,
+      exit_code INTEGER,
+      signal TEXT,
+      dod_result TEXT DEFAULT 'pending' CHECK(dod_result IN ('pending', 'merged', 'timeout', 'error')),
+      artifacts TEXT DEFAULT '[]',
+      error TEXT DEFAULT NULL
+    )
+  `)
+
+  // Create project_decisions table
+  await db.run(sql`
+    CREATE TABLE IF NOT EXISTS project_decisions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      category TEXT NOT NULL CHECK(category IN ('architecture', 'tooling', 'convention', 'rule')),
+      title TEXT NOT NULL,
+      decision TEXT NOT NULL,
+      reason TEXT,
+      related_task_id INTEGER REFERENCES tasks(id),
+      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      updated_at INTEGER
+    )
+  `)
+
+  // Create indexes
+  await db.run(sql`CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)`)
+  await db.run(sql`CREATE INDEX IF NOT EXISTS idx_tasks_assignee ON tasks(assignee_type, assignee_name)`)
+  await db.run(sql`CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id)`)
+  await db.run(sql`CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_id)`)
+  await db.run(sql`CREATE INDEX IF NOT EXISTS idx_sessions_task ON sessions(task_id)`)
+  await db.run(sql`CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions(status)`)
+  await db.run(sql`CREATE INDEX IF NOT EXISTS idx_decisions_category ON project_decisions(category)`)
+}
+
+/**
+ * Close database connection
+ */
+export function closeDb(): void {
+  if (clientInstance) {
+    clientInstance.close()
+    clientInstance = null
+    dbInstance = null
   }
-
-  // Default to SQLite
-  const dbPath = url.startsWith('file:') ? url.slice(5) : url
-  return { db: createSqliteDb(dbPath), type: 'sqlite' }
 }
 
-// Export schema
+// Re-export schema
 export * from './schema.js'
