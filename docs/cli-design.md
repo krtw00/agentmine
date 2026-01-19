@@ -339,7 +339,7 @@ When done:
   agentmine worker done 1
 ```
 
-**設計思想:** agentmineはエージェント非依存。環境を準備し、どのAIクライアントでも使える指示を表示する。AIの実行はユーザーが行う。
+**設計思想:** agentmineはエージェント非依存。環境（worktree、ブランチ、セッション）を準備し、プロンプトを生成する。Worker AIの起動はOrchestratorの責務。Claude Code, Codex, OpenCode, Aider等どのAIクライアントでも使用可能。
 
 ### worker done
 
