@@ -16,10 +16,12 @@
 - [Agent System](./features/agent-system.md) - エージェント定義・実行
 - [Authentication](./features/authentication.md) - 認証・認可
 - [Error Handling](./features/error-handling.md) - エラーハンドリング・リカバリー
+- [Git Integration](./features/git-integration.md) - Git操作・PR連携
 - [Memory Bank](./features/memory-bank.md) - プロジェクト決定事項の永続化
 - [Parallel Execution](./features/parallel-execution.md) - 並列タスク実行
+- [Session Log](./features/session-log.md) - セッションログ・監査
+- [Skill System](./features/skill-system.md) - スキルの位置づけ（管理外）
 - [Task Decomposition](./features/task-decomposition.md) - PRD→タスク分解
-- [Skill System](./features/skill-system.md) - スキル管理
 - [MCP Integration](./features/mcp-integration.md) - MCPサーバー
 
 ## API
