@@ -82,6 +82,18 @@ export function createDb(options: DbOptions = {}): Db {
 }
 
 /**
+ * Get or create database instance (singleton pattern)
+ */
+export async function getDb(options: DbOptions = {}): Promise<Db> {
+  if (!dbInstance) {
+    const db = createDb(options)
+    await initializeDb(db)
+    return db
+  }
+  return dbInstance
+}
+
+/**
  * Get the underlying libsql client
  */
 export function getClient(): Client | null {

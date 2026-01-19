@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@agentmine/core": "workspace:*",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-navigation-menu": "^1.2.14",
     "@radix-ui/react-separator": "^1.1.8",
