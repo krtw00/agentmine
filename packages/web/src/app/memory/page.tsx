@@ -3,62 +3,62 @@ import { Input } from "@/components/ui/input";
 
 const memoryTree = [
   {
-    category: "architecture",
-    hint: "core decisions",
+    category: "アーキテクチャ",
+    hint: "基盤設計の決定事項",
     files: [
       {
         path: "architecture/001-monorepo.md",
-        title: "Monorepo Architecture",
-        updated: "3 days ago",
-        status: "active",
+        title: "モノレポ構成",
+        updated: "3日前",
+        status: "運用中",
       },
       {
         path: "architecture/002-database.md",
-        title: "Database Strategy",
-        updated: "2 weeks ago",
-        status: "stable",
+        title: "データベース方針",
+        updated: "2週間前",
+        status: "安定",
       },
     ],
   },
   {
-    category: "tooling",
-    hint: "toolchain picks",
+    category: "ツール",
+    hint: "採用ツール",
     files: [
       {
         path: "tooling/001-testing.md",
-        title: "Testing Framework",
-        updated: "5 days ago",
-        status: "draft",
+        title: "テストフレームワーク",
+        updated: "5日前",
+        status: "下書き",
       },
       {
         path: "tooling/002-lint.md",
-        title: "Linting Rules",
-        updated: "1 month ago",
-        status: "stable",
+        title: "Lintルール",
+        updated: "1か月前",
+        status: "安定",
       },
     ],
   },
   {
-    category: "convention",
-    hint: "team conventions",
+    category: "規約",
+    hint: "チーム規約",
     files: [
       {
         path: "convention/001-commit-format.md",
-        title: "Commit Format",
-        updated: "3 weeks ago",
-        status: "stable",
+        title: "コミット形式",
+        updated: "3週間前",
+        status: "安定",
       },
     ],
   },
   {
-    category: "rule",
-    hint: "required rules",
+    category: "ルール",
+    hint: "必須ルール",
     files: [
       {
         path: "rule/001-tests-required.md",
-        title: "Tests Required",
-        updated: "4 days ago",
-        status: "active",
+        title: "テスト必須",
+        updated: "4日前",
+        status: "運用中",
       },
     ],
   },
@@ -67,25 +67,25 @@ const memoryTree = [
 const selectedPath = "architecture/001-monorepo.md";
 
 const editorContent = `---
-title: Monorepo Architecture
+title: モノレポ構成
 category: architecture
 created: 2025-02-12
 updated: 2025-03-03
 ---
 
-# Monorepo Architecture
+# モノレポ構成
 
-## Decision
+## 決定事項
 
-Use pnpm workspaces with Turborepo for CLI, core, and web packages.
+CLI・core・web の各パッケージに pnpm workspaces と Turborepo を採用する。
 
-## Reason
+## 理由
 
-- Shared types across CLI, core, and web.
-- Cached builds with Turborepo.
-- Single place to manage tooling and scripts.
+- CLI・core・web で型を共有できる。
+- Turborepo によるビルドキャッシュが効く。
+- ツールとスクリプトを一箇所で管理できる。
 
-## References
+## 参考リンク
 
 - https://turbo.build/
 `;
@@ -99,18 +99,18 @@ export default function MemoryPage() {
             Memory Bank
           </p>
           <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-            Shared decisions, instantly reusable
+            共有した決定事項を、すぐに再利用
           </h1>
           <p className="max-w-2xl text-sm text-muted-foreground">
-            Curate project knowledge as structured markdown and preview the
-            context your agents receive before a run starts.
+            構造化された Markdown で知識を整理し、実行前にエージェントへ渡る
+            コンテキストをプレビューします。
           </p>
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <span className="rounded-full border bg-background/80 px-3 py-1">
-              4 categories
+              カテゴリ 4件
             </span>
             <span className="rounded-full border bg-background/80 px-3 py-1">
-              6 entries
+              エントリ 6件
             </span>
             <span className="rounded-full border bg-background/80 px-3 py-1 font-mono">
               .agentmine/memory
@@ -118,12 +118,12 @@ export default function MemoryPage() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm">New Memory</Button>
+          <Button size="sm">新規メモリ</Button>
           <Button variant="outline" size="sm">
-            New Folder
+            新規フォルダ
           </Button>
           <Button variant="ghost" size="sm">
-            Preview Context
+            コンテキストをプレビュー
           </Button>
         </div>
       </div>
@@ -135,21 +135,21 @@ export default function MemoryPage() {
             <div className="rounded-2xl border bg-background/80 p-4 backdrop-blur">
               <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold">Library</p>
+                  <p className="text-sm font-semibold">ライブラリ</p>
                   <span className="text-xs text-muted-foreground">
-                    2 drafts
+                    下書き 2件
                   </span>
                 </div>
-                <Input placeholder="Search memories" />
+                <Input placeholder="メモリを検索" />
                 <div className="flex flex-wrap gap-2">
                   <Button variant="outline" size="sm">
-                    All
+                    すべて
                   </Button>
                   <Button variant="ghost" size="sm">
-                    Active
+                    運用中
                   </Button>
                   <Button variant="ghost" size="sm">
-                    Draft
+                    下書き
                   </Button>
                 </div>
               </div>
@@ -162,7 +162,7 @@ export default function MemoryPage() {
                     <div className="flex items-center justify-between text-xs uppercase tracking-[0.2em] text-muted-foreground">
                       <span>{group.category}</span>
                       <span className="rounded-full border bg-background/90 px-2 py-0.5 text-[10px] font-semibold uppercase">
-                        {group.files.length} files
+                        {group.files.length} 件
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground">
@@ -195,7 +195,7 @@ export default function MemoryPage() {
                               </span>
                             </div>
                             <p className="mt-2 text-xs text-muted-foreground">
-                              Updated {file.updated}
+                              更新 {file.updated}
                             </p>
                           </button>
                         );
@@ -213,23 +213,22 @@ export default function MemoryPage() {
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div className="space-y-1">
                     <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">
-                      architecture
+                      アーキテクチャ
                     </p>
                     <h2 className="text-2xl font-semibold">
-                      Monorepo Architecture
+                      モノレポ構成
                     </h2>
                     <p className="text-sm text-muted-foreground">
-                      Single source of truth for decisions tied to platform
-                      structure.
+                      プラットフォーム構成に関する決定事項の唯一の参照元。
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <Button size="sm">Save</Button>
+                    <Button size="sm">保存</Button>
                     <Button variant="outline" size="sm">
-                      Duplicate
+                      複製
                     </Button>
                     <Button variant="ghost" size="sm">
-                      Delete
+                      削除
                     </Button>
                   </div>
                 </div>
@@ -238,10 +237,10 @@ export default function MemoryPage() {
                     architecture/001-monorepo.md
                   </span>
                   <span className="rounded-full border bg-background/80 px-2 py-1">
-                    Created 2025-02-12
+                    作成日 2025-02-12
                   </span>
                   <span className="rounded-full border bg-background/80 px-2 py-1">
-                    Updated 2025-03-03
+                    更新日 2025-03-03
                   </span>
                 </div>
               </div>
@@ -249,7 +248,7 @@ export default function MemoryPage() {
               <div className="mt-5 grid gap-4 xl:grid-cols-2">
                 <div className="rounded-2xl border bg-card p-4">
                   <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold">Editor</p>
+                    <p className="text-sm font-semibold">エディタ</p>
                     <span className="text-xs text-muted-foreground">
                       Markdown
                     </span>
@@ -259,25 +258,25 @@ export default function MemoryPage() {
                     defaultValue={editorContent}
                   />
                   <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
-                    <span>Line 1 of 24</span>
-                    <span>Autosave enabled</span>
+                    <span>1行目 / 24行</span>
+                    <span>自動保存 有効</span>
                   </div>
                 </div>
 
                 <div className="rounded-2xl border bg-card p-4">
                   <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold">Preview</p>
+                    <p className="text-sm font-semibold">プレビュー</p>
                     <span className="text-xs text-muted-foreground">
-                      Rendered
+                      レンダリング
                     </span>
                   </div>
                   <div className="mt-4 space-y-4 text-sm leading-6">
                     <div className="rounded-xl border bg-background/80 p-3">
                       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                        Front matter
+                        フロントマター
                       </p>
                       <p className="mt-2 font-mono text-xs text-muted-foreground">
-                        title: Monorepo Architecture
+                        title: モノレポ構成
                         <br />
                         category: architecture
                         <br />
@@ -288,26 +287,26 @@ export default function MemoryPage() {
                     </div>
                     <div>
                       <h3 className="text-base font-semibold">
-                        Monorepo Architecture
+                        モノレポ構成
                       </h3>
                       <p className="text-sm text-muted-foreground">
-                        Use pnpm workspaces with Turborepo for CLI, core, and
-                        web packages.
+                        CLI・core・web の各パッケージに pnpm workspaces と
+                        Turborepo を採用する。
                       </p>
                     </div>
                     <div>
                       <h4 className="text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                        Reason
+                        理由
                       </h4>
                       <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-                        <li>Shared types across packages.</li>
-                        <li>Cached builds with Turborepo.</li>
-                        <li>Single place to manage scripts.</li>
+                        <li>パッケージ間で型を共有。</li>
+                        <li>Turborepo でビルドをキャッシュ。</li>
+                        <li>スクリプト管理を一箇所に集約。</li>
                       </ul>
                     </div>
                     <div>
                       <h4 className="text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                        References
+                        参考リンク
                       </h4>
                       <div className="mt-2 rounded-xl border bg-background/80 px-3 py-2 font-mono text-xs text-muted-foreground">
                         https://turbo.build/
@@ -321,23 +320,25 @@ export default function MemoryPage() {
             <div className="rounded-2xl border bg-background/80 p-5 backdrop-blur">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-semibold">Context Preview</p>
+                  <p className="text-sm font-semibold">
+                    コンテキストプレビュー
+                  </p>
                   <p className="text-xs text-muted-foreground">
-                    Combined context sent to agents at session start.
+                    セッション開始時にエージェントへ送る統合コンテキスト。
                   </p>
                 </div>
                 <Button variant="outline" size="sm">
-                  Copy
+                  コピー
                 </Button>
               </div>
               <div className="mt-4 rounded-2xl border bg-card p-4 font-mono text-xs leading-5 text-muted-foreground">
-                <p className="text-foreground">## Project Decisions</p>
-                <p className="mt-2">### Architecture</p>
-                <p>- Monorepo Architecture: pnpm + Turborepo</p>
-                <p className="mt-2">### Tooling</p>
-                <p>- Testing Framework: Vitest</p>
-                <p className="mt-2">### Rules</p>
-                <p>- Tests Required: add regression coverage</p>
+                <p className="text-foreground">## プロジェクト決定事項</p>
+                <p className="mt-2">### アーキテクチャ</p>
+                <p>- モノレポ構成: pnpm + Turborepo</p>
+                <p className="mt-2">### ツール</p>
+                <p>- テストフレームワーク: Vitest</p>
+                <p className="mt-2">### ルール</p>
+                <p>- テスト必須: 回帰カバレッジ追加</p>
               </div>
             </div>
           </section>
