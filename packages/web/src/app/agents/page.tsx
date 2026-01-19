@@ -46,7 +46,7 @@ const INITIAL_AGENTS: AgentDefinition[] = [
   {
     id: 'agent-coder',
     name: 'coder',
-    description: 'Implementation-focused agent for core features.',
+    description: 'コア機能の実装に特化したエージェント。',
     client: 'claude-code',
     model: 'opus',
     scope: DEFAULT_SCOPE,
@@ -59,7 +59,7 @@ const INITIAL_AGENTS: AgentDefinition[] = [
   {
     id: 'agent-reviewer',
     name: 'reviewer',
-    description: 'Review agent for quality, risk, and regression checks.',
+    description: '品質・リスク・回帰チェックのレビューエージェント。',
     client: 'claude-code',
     model: 'sonnet',
     scope: {
@@ -76,7 +76,7 @@ const INITIAL_AGENTS: AgentDefinition[] = [
   {
     id: 'agent-planner',
     name: 'planner',
-    description: 'Breaks down tasks into milestones and execution steps.',
+    description: 'タスクをマイルストーンと実行ステップに分解します。',
     client: 'codex',
     model: 'o4-mini',
     scope: {
@@ -257,7 +257,7 @@ const parseAgentYaml = (yaml: string) => {
     }
 
     if (!result.name || !result.client || !result.model) {
-      return { error: 'name, client, and model are required.' };
+      return { error: 'name、client、model は必須です。' };
     }
 
     return {
@@ -272,7 +272,9 @@ const parseAgentYaml = (yaml: string) => {
       },
     };
   } catch (error) {
-    return { error: error instanceof Error ? error.message : 'Unable to parse YAML.' };
+    return {
+      error: error instanceof Error ? error.message : 'YAMLを解析できませんでした。',
+    };
   }
 };
 
@@ -379,7 +381,7 @@ export default function AgentsPage() {
 
     if (mode === 'yaml') {
       if (!yamlStatus.agent || yamlStatus.error) {
-        setYamlError(yamlStatus.error ?? 'Unable to parse YAML.');
+        setYamlError(yamlStatus.error ?? 'YAMLを解析できませんでした。');
         return;
       }
 
@@ -426,7 +428,7 @@ export default function AgentsPage() {
     const agent: AgentDefinition = {
       id,
       name,
-      description: 'New agent definition.',
+      description: '新しいエージェント定義です。',
       client: 'claude-code',
       model: 'sonnet',
       scope: DEFAULT_SCOPE,
@@ -445,19 +447,19 @@ export default function AgentsPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Agents</h1>
+          <h1 className="text-3xl font-bold tracking-tight">エージェント</h1>
           <p className="text-muted-foreground">
-            Configure and manage agent definitions with UI and YAML editors.
+            UIとYAMLエディターでエージェント定義を管理します。
           </p>
         </div>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
           <Input
-            placeholder="Search agents"
+            placeholder="エージェントを検索"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             className="sm:w-56"
           />
-          <Button onClick={handleNewAgent}>New Agent</Button>
+          <Button onClick={handleNewAgent}>新規エージェント</Button>
         </div>
       </div>
 
@@ -466,9 +468,9 @@ export default function AgentsPage() {
           <div className="rounded-lg border bg-card">
             <div className="border-b px-4 py-3">
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold">Agent List</h2>
+                <h2 className="text-sm font-semibold">エージェント一覧</h2>
                 <span className="text-xs text-muted-foreground">
-                  {filteredAgents.length} agents
+                  {filteredAgents.length} 件
                 </span>
               </div>
             </div>
@@ -502,13 +504,13 @@ export default function AgentsPage() {
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
                       <span className="rounded-full border px-2 py-0.5">
-                        Read {agent.scope.read.length}
+                        読み取り {agent.scope.read.length}
                       </span>
                       <span className="rounded-full border px-2 py-0.5">
-                        Write {agent.scope.write.length}
+                        書き込み {agent.scope.write.length}
                       </span>
                       <span className="rounded-full border px-2 py-0.5">
-                        Exclude {agent.scope.exclude.length}
+                        除外 {agent.scope.exclude.length}
                       </span>
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2">
@@ -521,7 +523,7 @@ export default function AgentsPage() {
                           setMode('ui');
                         }}
                       >
-                        Edit UI
+                        UI編集
                       </Button>
                       <Button
                         size="sm"
@@ -532,14 +534,14 @@ export default function AgentsPage() {
                           setMode('yaml');
                         }}
                       >
-                        Edit YAML
+                        YAML編集
                       </Button>
                       <Button
                         size="sm"
                         variant="ghost"
                         onClick={(event) => event.stopPropagation()}
                       >
-                        View Prompt
+                        プロンプトを表示
                       </Button>
                     </div>
                   </div>
@@ -547,7 +549,7 @@ export default function AgentsPage() {
               })}
               {filteredAgents.length === 0 && (
                 <div className="px-4 py-6 text-sm text-muted-foreground">
-                  No agents match the current search.
+                  検索条件に一致するエージェントがありません。
                 </div>
               )}
             </div>
@@ -557,17 +559,17 @@ export default function AgentsPage() {
         <div className="rounded-lg border bg-card p-6">
           {!draft ? (
             <p className="text-sm text-muted-foreground">
-              Select an agent to view or edit its definition.
+              エージェントを選択して定義を表示・編集します。
             </p>
           ) : (
             <div className="space-y-6">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 className="text-lg font-semibold">
-                    Edit Agent: {draft.name}
+                    エージェントを編集: {draft.name}
                   </h2>
                   <p className="text-sm text-muted-foreground">
-                    Use the UI editor or switch to raw YAML.
+                    UIエディターを使うか、生のYAMLに切り替えて編集します。
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -576,18 +578,18 @@ export default function AgentsPage() {
                     variant={mode === 'ui' ? 'default' : 'outline'}
                     onClick={() => setMode('ui')}
                   >
-                    UI Editor
+                    UIエディター
                   </Button>
                   <Button
                     size="sm"
                     variant={mode === 'yaml' ? 'default' : 'outline'}
                     onClick={() => setMode('yaml')}
                   >
-                    YAML Editor
+                    YAMLエディター
                   </Button>
                   {dirty && (
                     <span className="text-xs text-muted-foreground">
-                      Unsaved changes
+                      未保存の変更
                     </span>
                   )}
                 </div>
@@ -597,7 +599,7 @@ export default function AgentsPage() {
                 <div className="space-y-6">
                   <div className="grid gap-4 sm:grid-cols-2">
                     <label className="space-y-2 text-sm">
-                      <span className="font-medium">Name</span>
+                      <span className="font-medium">名前</span>
                       <Input
                         value={draft.name}
                         onChange={(event) =>
@@ -606,7 +608,7 @@ export default function AgentsPage() {
                       />
                     </label>
                     <label className="space-y-2 text-sm">
-                      <span className="font-medium">Description</span>
+                      <span className="font-medium">説明</span>
                       <Input
                         value={draft.description ?? ''}
                         onChange={(event) =>
@@ -622,10 +624,10 @@ export default function AgentsPage() {
                   <Separator />
 
                   <div className="space-y-3">
-                    <p className="text-sm font-semibold">Execution</p>
+                    <p className="text-sm font-semibold">実行</p>
                     <div className="grid gap-4 sm:grid-cols-2">
                       <label className="space-y-2 text-sm">
-                        <span className="font-medium">Client</span>
+                        <span className="font-medium">クライアント</span>
                         <select
                           className={fieldClassName}
                           value={draft.client}
@@ -647,7 +649,7 @@ export default function AgentsPage() {
                         </select>
                       </label>
                       <label className="space-y-2 text-sm">
-                        <span className="font-medium">Model</span>
+                        <span className="font-medium">モデル</span>
                         <select
                           className={fieldClassName}
                           value={draft.model}
@@ -671,14 +673,14 @@ export default function AgentsPage() {
 
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-semibold">Scope</p>
+                      <p className="text-sm font-semibold">スコープ</p>
                       <span className="text-xs text-muted-foreground">
-                        One pattern per line
+                        1行に1パターン
                       </span>
                     </div>
                     <div className="grid gap-4 sm:grid-cols-3">
                       <label className="space-y-2 text-sm">
-                        <span className="font-medium">Read</span>
+                        <span className="font-medium">読み取り</span>
                         <textarea
                           className={textAreaClassName}
                           rows={4}
@@ -689,7 +691,7 @@ export default function AgentsPage() {
                         />
                       </label>
                       <label className="space-y-2 text-sm">
-                        <span className="font-medium">Write</span>
+                        <span className="font-medium">書き込み</span>
                         <textarea
                           className={textAreaClassName}
                           rows={4}
@@ -700,7 +702,7 @@ export default function AgentsPage() {
                         />
                       </label>
                       <label className="space-y-2 text-sm">
-                        <span className="font-medium">Exclude</span>
+                        <span className="font-medium">除外</span>
                         <textarea
                           className={textAreaClassName}
                           rows={4}
@@ -716,10 +718,10 @@ export default function AgentsPage() {
                   <Separator />
 
                   <div className="space-y-3">
-                    <p className="text-sm font-semibold">Config</p>
+                    <p className="text-sm font-semibold">設定</p>
                     <div className="grid gap-4 sm:grid-cols-3">
                       <label className="space-y-2 text-sm">
-                        <span className="font-medium">Temperature</span>
+                        <span className="font-medium">温度</span>
                         <Input
                           type="number"
                           step="0.1"
@@ -730,7 +732,7 @@ export default function AgentsPage() {
                         />
                       </label>
                       <label className="space-y-2 text-sm">
-                        <span className="font-medium">Max Tokens</span>
+                        <span className="font-medium">最大トークン</span>
                         <Input
                           type="number"
                           value={draft.config.maxTokens ?? ''}
@@ -740,7 +742,7 @@ export default function AgentsPage() {
                         />
                       </label>
                       <label className="space-y-2 text-sm">
-                        <span className="font-medium">Prompt File</span>
+                        <span className="font-medium">プロンプトファイル</span>
                         <Input
                           value={draft.config.promptFile ?? ''}
                           onChange={(event) =>
@@ -763,7 +765,7 @@ export default function AgentsPage() {
                           : 'text-emerald-600'
                       )}
                     >
-                      {yamlStatus.error ? 'YAML invalid' : 'YAML valid'}
+                      {yamlStatus.error ? 'YAMLエラー' : 'YAML正常'}
                     </span>
                   </div>
                   <div className="rounded-md border bg-background">
@@ -794,10 +796,10 @@ export default function AgentsPage() {
 
               <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                 <Button variant="outline" onClick={handleCancel}>
-                  Cancel
+                  キャンセル
                 </Button>
                 <Button onClick={handleSave} disabled={!dirty}>
-                  Save
+                  保存
                 </Button>
               </div>
             </div>
