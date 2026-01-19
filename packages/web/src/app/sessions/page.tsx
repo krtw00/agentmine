@@ -6,36 +6,36 @@ type SessionStatus = "running" | "completed" | "failed" | "cancelled";
 type RecentStatus = Exclude<SessionStatus, "running">;
 
 const filters = [
-  { id: "all", label: "All", count: 18 },
-  { id: "running", label: "Running", count: 2 },
-  { id: "completed", label: "Completed", count: 12 },
-  { id: "failed", label: "Failed", count: 3 },
-  { id: "cancelled", label: "Cancelled", count: 1 },
+  { id: "all", label: "すべて", count: 18 },
+  { id: "running", label: "実行中", count: 2 },
+  { id: "completed", label: "完了", count: 12 },
+  { id: "failed", label: "失敗", count: 3 },
+  { id: "cancelled", label: "キャンセル", count: 1 },
 ];
 
 const sessionStats = [
   {
-    label: "Live sessions",
+    label: "稼働中セッション",
     value: "2",
-    detail: "1 waiting review",
+    detail: "レビュー待ち1件",
     className: "from-emerald-200/70 via-emerald-50/70 to-transparent",
   },
   {
-    label: "Completed today",
+    label: "本日完了",
     value: "6",
-    detail: "Median 9m 12s",
+    detail: "中央値 9分12秒",
     className: "from-sky-200/70 via-sky-50/70 to-transparent",
   },
   {
-    label: "Failed this week",
+    label: "今週の失敗",
     value: "1",
-    detail: "Last error 2d ago",
+    detail: "最後のエラーは2日前",
     className: "from-rose-200/70 via-rose-50/70 to-transparent",
   },
   {
-    label: "Artifacts tracked",
+    label: "成果物の追跡",
     value: "23",
-    detail: "Across 4 tasks",
+    detail: "4タスク分",
     className: "from-amber-200/70 via-amber-50/70 to-transparent",
   },
 ];
@@ -44,25 +44,25 @@ const runningSessions = [
   {
     id: 118,
     taskId: 42,
-    taskTitle: "Add login endpoint",
+    taskTitle: "ログインエンドポイント追加",
     agent: "coder",
     model: "claude-code / opus",
-    startedAt: "Today 14:30",
-    duration: "12m 12s",
+    startedAt: "今日 14:30",
+    duration: "12分12秒",
     worktree: "task-42-add-login",
-    activity: "Syncing auth handler",
+    activity: "認証ハンドラを同期中",
     progress: 72,
   },
   {
     id: 117,
     taskId: 37,
-    taskTitle: "Refactor billing sync",
+    taskTitle: "請求同期のリファクタ",
     agent: "reviewer",
     model: "claude-code / sonnet",
-    startedAt: "Today 14:22",
-    duration: "5m 08s",
+    startedAt: "今日 14:22",
+    duration: "5分08秒",
     worktree: "task-37-billing-sync",
-    activity: "Running targeted tests",
+    activity: "対象テストを実行中",
     progress: 46,
   },
 ];
@@ -82,76 +82,76 @@ const recentSessions: Array<{
   {
     id: 116,
     taskId: 33,
-    taskTitle: "Setup database schema",
+    taskTitle: "データベーススキーマ設定",
     agent: "coder",
-    duration: "12m 04s",
-    completedAt: "Today 12:10",
+    duration: "12分04秒",
+    completedAt: "今日 12:10",
     status: "completed",
-    outcome: "merged",
+    outcome: "マージ",
     artifacts: 3,
-    summary: "Schema migration + repository hooks",
+    summary: "スキーマ移行 + リポジトリフック",
   },
   {
     id: 115,
     taskId: 29,
-    taskTitle: "Fix auth timeout bug",
+    taskTitle: "認証タイムアウトの不具合修正",
     agent: "coder",
-    duration: "8m 47s",
-    completedAt: "Yesterday 18:24",
+    duration: "8分47秒",
+    completedAt: "昨日 18:24",
     status: "failed",
-    outcome: "timeout",
+    outcome: "タイムアウト",
     artifacts: 1,
-    summary: "API retry loop hit time limit",
+    summary: "API再試行ループが制限時間に到達",
   },
   {
     id: 114,
     taskId: 27,
-    taskTitle: "Prepare release notes",
+    taskTitle: "リリースノート準備",
     agent: "planner",
-    duration: "4m 12s",
-    completedAt: "Yesterday 17:02",
+    duration: "4分12秒",
+    completedAt: "昨日 17:02",
     status: "cancelled",
-    outcome: "manual stop",
+    outcome: "手動停止",
     artifacts: 0,
-    summary: "Scope changed mid-run",
+    summary: "実行中にスコープ変更",
   },
 ];
 
 const activityFeed = [
   {
     time: "14:44",
-    label: "Artifacts captured",
-    detail: "Session #118 added 2 files",
+    label: "成果物を記録",
+    detail: "セッション #118 が2ファイル追加",
   },
   {
     time: "14:39",
-    label: "Session paused",
-    detail: "Session #117 awaiting approval",
+    label: "セッションを一時停止",
+    detail: "セッション #117 承認待ち",
   },
   {
     time: "12:10",
-    label: "Session completed",
-    detail: "Session #116 merged to main",
+    label: "セッション完了",
+    detail: "セッション #116 が main にマージ",
   },
   {
     time: "11:55",
-    label: "Worker spawned",
-    detail: "Session #118 running on worker-2",
+    label: "ワーカー起動",
+    detail: "セッション #118 が worker-2 で実行中",
   },
 ];
 
 const reviewQueue = [
   {
     id: 118,
-    taskTitle: "Add login endpoint",
+    taskTitle: "ログインエンドポイント追加",
     agent: "coder",
-    eta: "3m remaining",
+    eta: "残り3分",
   },
   {
     id: 112,
-    taskTitle: "Upgrade telemetry",
+    taskTitle: "テレメトリ更新",
     agent: "reviewer",
-    eta: "awaiting triage",
+    eta: "トリアージ待ち",
   },
 ];
 
@@ -160,17 +160,17 @@ const statusMeta: Record<
   { label: string; badge: string; dot: string }
 > = {
   completed: {
-    label: "Completed",
+    label: "完了",
     badge: "bg-emerald-500/10 text-emerald-700",
     dot: "bg-emerald-500",
   },
   failed: {
-    label: "Failed",
+    label: "失敗",
     badge: "bg-rose-500/10 text-rose-700",
     dot: "bg-rose-500",
   },
   cancelled: {
-    label: "Cancelled",
+    label: "キャンセル",
     badge: "bg-amber-500/10 text-amber-700",
     dot: "bg-amber-500",
   },
@@ -184,21 +184,21 @@ export default function SessionsPage() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-[0.35em] text-muted-foreground">
-            Sessions
+            セッション
           </p>
           <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-            Session control room
+            セッション管制室
           </h1>
           <p className="max-w-2xl text-sm text-muted-foreground">
-            Track every agent run, spot bottlenecks fast, and drill into the
-            session logs when something looks off.
+            すべてのエージェント実行を追跡し、ボトルネックを素早く検知し、
+            異常があればセッションログを掘り下げます。
           </p>
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <span className="rounded-full border bg-background/80 px-3 py-1">
-              18 total sessions
+              合計18セッション
             </span>
             <span className="rounded-full border bg-background/80 px-3 py-1">
-              2 running
+              実行中2件
             </span>
             <span className="rounded-full border bg-background/80 px-3 py-1 font-mono">
               .agentmine/sessions
@@ -206,12 +206,12 @@ export default function SessionsPage() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm">Start Session</Button>
+          <Button size="sm">セッション開始</Button>
           <Button variant="outline" size="sm">
-            Pending Review
+            レビュー待ち
           </Button>
           <Button variant="ghost" size="sm">
-            Export Log
+            ログをエクスポート
           </Button>
         </div>
       </div>
@@ -238,7 +238,7 @@ export default function SessionsPage() {
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex flex-1 flex-col gap-3 md:flex-row md:items-center">
             <Input
-              placeholder="Search by task, agent, or session id"
+              placeholder="タスク、エージェント、セッションIDで検索"
               className="md:max-w-sm"
             />
             <div className="flex flex-wrap gap-2">
@@ -262,10 +262,10 @@ export default function SessionsPage() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" variant="outline">
-              Filter
+              フィルタ
             </Button>
             <Button size="sm" variant="outline">
-              Sort by recency
+              新しい順
             </Button>
           </div>
         </div>
@@ -277,12 +277,12 @@ export default function SessionsPage() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
-                  Running
+                  実行中
                 </p>
-                <h2 className="text-xl font-semibold">Live sessions</h2>
+                <h2 className="text-xl font-semibold">稼働中セッション</h2>
               </div>
               <span className="rounded-full border bg-background/80 px-3 py-1 text-xs font-semibold uppercase">
-                {runningSessions.length} active
+                {runningSessions.length}件稼働中
               </span>
             </div>
             <div className="mt-4 space-y-4">
@@ -296,37 +296,37 @@ export default function SessionsPage() {
                       <div className="flex items-center gap-2">
                         <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500" />
                         <p className="text-sm font-semibold">
-                          Task #{session.taskId}: {session.taskTitle}
+                          タスク #{session.taskId}: {session.taskTitle}
                         </p>
                       </div>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Agent: {session.agent} / {session.model}
+                        エージェント: {session.agent} / {session.model}
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Button variant="outline" size="sm" asChild>
-                        <Link href={`/sessions/${session.id}`}>View</Link>
+                        <Link href={`/sessions/${session.id}`}>表示</Link>
                       </Button>
                       <Button variant="destructive" size="sm">
-                        Cancel
+                        停止
                       </Button>
                     </div>
                   </div>
                   <div className="mt-4 grid gap-3 text-xs text-muted-foreground sm:grid-cols-3">
                     <div>
-                      <p className="uppercase tracking-[0.2em]">Started</p>
+                      <p className="uppercase tracking-[0.2em]">開始</p>
                       <p className="mt-1 text-sm font-medium text-foreground">
                         {session.startedAt}
                       </p>
                     </div>
                     <div>
-                      <p className="uppercase tracking-[0.2em]">Duration</p>
+                      <p className="uppercase tracking-[0.2em]">所要時間</p>
                       <p className="mt-1 text-sm font-medium text-foreground">
                         {session.duration}
                       </p>
                     </div>
                     <div>
-                      <p className="uppercase tracking-[0.2em]">Worktree</p>
+                      <p className="uppercase tracking-[0.2em]">ワークツリー</p>
                       <p className="mt-1 text-sm font-medium text-foreground">
                         {session.worktree}
                       </p>
@@ -335,7 +335,7 @@ export default function SessionsPage() {
                   <div className="mt-4 space-y-2">
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-muted-foreground">
-                        Current activity
+                        現在の作業
                       </span>
                       <span className="font-medium text-foreground">
                         {session.activity}
@@ -357,12 +357,12 @@ export default function SessionsPage() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
-                  Recent
+                  最近
                 </p>
-                <h2 className="text-xl font-semibold">Completed sessions</h2>
+                <h2 className="text-xl font-semibold">完了済みセッション</h2>
               </div>
               <span className="rounded-full border bg-background/80 px-3 py-1 text-xs font-semibold uppercase">
-                Last 48h
+                直近48時間
               </span>
             </div>
             <div className="mt-4 space-y-4">
@@ -380,12 +380,12 @@ export default function SessionsPage() {
                             className={`inline-flex h-2 w-2 rounded-full ${meta.dot}`}
                           />
                           <p className="text-sm font-semibold">
-                            Task #{session.taskId}: {session.taskTitle}
+                            タスク #{session.taskId}: {session.taskTitle}
                           </p>
                         </div>
                         <p className="mt-1 text-xs text-muted-foreground">
-                          Agent: {session.agent} / {session.duration} /{" "}
-                          {session.completedAt}
+                          エージェント: {session.agent} / 所要時間{" "}
+                          {session.duration} / 完了 {session.completedAt}
                         </p>
                       </div>
                       <span
@@ -396,19 +396,19 @@ export default function SessionsPage() {
                     </div>
                     <div className="mt-4 grid gap-3 text-xs text-muted-foreground sm:grid-cols-3">
                       <div>
-                        <p className="uppercase tracking-[0.2em]">Outcome</p>
+                        <p className="uppercase tracking-[0.2em]">結果</p>
                         <p className="mt-1 text-sm font-medium text-foreground">
                           {session.outcome}
                         </p>
                       </div>
                       <div>
-                        <p className="uppercase tracking-[0.2em]">Artifacts</p>
+                        <p className="uppercase tracking-[0.2em]">成果物</p>
                         <p className="mt-1 text-sm font-medium text-foreground">
-                          {session.artifacts} files
+                          {session.artifacts} 件
                         </p>
                       </div>
                       <div>
-                        <p className="uppercase tracking-[0.2em]">Summary</p>
+                        <p className="uppercase tracking-[0.2em]">概要</p>
                         <p className="mt-1 text-sm font-medium text-foreground">
                           {session.summary}
                         </p>
@@ -416,13 +416,13 @@ export default function SessionsPage() {
                     </div>
                     <div className="mt-4 flex flex-wrap gap-2">
                       <Button variant="outline" size="sm" asChild>
-                        <Link href={`/sessions/${session.id}`}>View</Link>
+                        <Link href={`/sessions/${session.id}`}>表示</Link>
                       </Button>
                       <Button variant="ghost" size="sm">
-                        Delete
+                        削除
                       </Button>
                       {session.status === "failed" ? (
-                        <Button size="sm">Retry</Button>
+                        <Button size="sm">再実行</Button>
                       ) : null}
                     </div>
                   </div>
@@ -437,12 +437,12 @@ export default function SessionsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
-                  Activity
+                  アクティビティ
                 </p>
-                <h3 className="text-lg font-semibold">Latest events</h3>
+                <h3 className="text-lg font-semibold">最新イベント</h3>
               </div>
               <Button size="sm" variant="outline">
-                View feed
+                フィードを見る
               </Button>
             </div>
             <div className="mt-4 space-y-3">
@@ -454,7 +454,7 @@ export default function SessionsPage() {
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span>{event.time}</span>
                     <span className="rounded-full border bg-background/90 px-2 py-0.5 text-[10px] font-semibold uppercase">
-                      event
+                      イベント
                     </span>
                   </div>
                   <p className="mt-2 font-semibold">{event.label}</p>
@@ -468,12 +468,12 @@ export default function SessionsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
-                  Review queue
+                  レビュー待ち
                 </p>
-                <h3 className="text-lg font-semibold">Sessions to verify</h3>
+                <h3 className="text-lg font-semibold">確認対象セッション</h3>
               </div>
               <span className="rounded-full border bg-background/80 px-2 py-0.5 text-[10px] font-semibold uppercase">
-                {reviewQueue.length} items
+                {reviewQueue.length} 件
               </span>
             </div>
             <div className="mt-4 space-y-3">
@@ -483,17 +483,17 @@ export default function SessionsPage() {
                   className="rounded-2xl border bg-background/80 p-4 text-sm"
                 >
                   <p className="font-semibold">
-                    Session #{item.id} / {item.taskTitle}
+                    セッション #{item.id} / {item.taskTitle}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Agent: {item.agent} / {item.eta}
+                    エージェント: {item.agent} / {item.eta}
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Button size="sm" variant="outline" asChild>
-                      <Link href={`/sessions/${item.id}`}>Open</Link>
+                      <Link href={`/sessions/${item.id}`}>開く</Link>
                     </Button>
                     <Button size="sm" variant="ghost">
-                      Approve
+                      承認
                     </Button>
                   </div>
                 </div>
@@ -504,26 +504,26 @@ export default function SessionsPage() {
           <section className="rounded-3xl border bg-card/70 p-6">
             <div className="space-y-2">
               <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
-                Retention
+                保持
               </p>
-              <h3 className="text-lg font-semibold">Session log storage</h3>
+              <h3 className="text-lg font-semibold">セッションログの保管</h3>
               <p className="text-sm text-muted-foreground">
-                Logs are stored in the project database. Retention is currently
-                set to 90 days with weekly cleanup.
+                ログはプロジェクトのデータベースに保存されます。保持期間は90日で、
+                週次クリーンアップが実行されます。
               </p>
             </div>
             <div className="mt-4 rounded-2xl border bg-background/80 p-4 text-sm">
-              <p className="font-semibold">Retention policy</p>
+              <p className="font-semibold">保持ポリシー</p>
               <p className="text-xs text-muted-foreground">
-                Cleanup runs every Sunday at 02:00. 14 sessions will expire in
-                the next 7 days.
+                クリーンアップは毎週日曜02:00に実行されます。次の7日で14セッションが
+                期限切れになります。
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <Button size="sm" variant="outline">
-                  Edit policy
+                  ポリシー編集
                 </Button>
                 <Button size="sm" variant="ghost">
-                  Run cleanup
+                  クリーンアップ実行
                 </Button>
               </div>
             </div>
