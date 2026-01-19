@@ -1,0 +1,26 @@
+{
+  "name": "agentmine",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI Project Manager - Redmine for AI agents with CLI and Web UI",
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "cli": "pnpm --filter @agentmine/cli",
+    "web": "pnpm --filter @agentmine/web",
+    "core": "pnpm --filter @agentmine/core"
+  },
+  "keywords": [
+    "ai",
+    "project-management",
+    "cli",
+    "agents"
+  ],
+  "author": "",
+  "license": "MIT",
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20"
+  }
+}
