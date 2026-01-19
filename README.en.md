@@ -2,34 +2,34 @@
 
 **The Project Management Platform Built for AI Agents**
 
-> AIエージェントと人間が真に協調できるプロジェクト管理プラットフォーム
+> A project management platform where AI agents and humans truly collaborate
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue.svg)](https://www.typescriptlang.org/)
 
-[English](./README.en.md) | 日本語
+English | [日本語](./README.md)
 
 ---
 
 ## Why agentmine?
 
-AIコーディングエージェント（Claude Code, Codex CLI, Gemini CLI等）が実装を担当する時代。
-しかし、既存ツールには課題があります：
+We're in an era where AI coding agents (Claude Code, Codex CLI, Gemini CLI, etc.) handle implementation.
+However, existing tools have significant limitations:
 
-| ツール | 課題 |
-|--------|------|
-| **GitHub Issues / Jira** | 人間向けUI。AIには情報密度が低く、操作が冗長 |
-| **APM** | コンテキスト管理に特化。本格的なプロジェクト管理機能がない |
-| **TSK** | サンドボックス実行に特化。タスク管理が簡易的 |
-| **TaskMaster AI** | タスク分解に特化。プロジェクト全体の管理ができない |
+| Tool | Problem |
+|------|---------|
+| **GitHub Issues / Jira** | Designed for humans. Low information density for AI, verbose operations |
+| **APM** | Focused on context management. Lacks full-fledged project management |
+| **TSK** | Focused on sandbox execution. Minimal task management |
+| **TaskMaster AI** | Focused on task decomposition. Can't manage entire projects |
 
-**agentmine**は、これらの良いとこ取りをした統合プラットフォームです。
+**agentmine** is an integrated platform that takes the best from all of these.
 
 ---
 
 ## Core Features
 
-### 1. Dual Interface - AI と人間、両方のための設計
+### 1. Dual Interface - Designed for Both AI and Humans
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -40,9 +40,9 @@ AIコーディングエージェント（Claude Code, Codex CLI, Gemini CLI等�
 │   │       CLI        │       │      Web UI      │          │
 │   │                  │       │                  │          │
 │   │  AI Agents       │       │  Humans          │          │
-│   │  - 構造化出力    │       │  - カンバンボード │          │
-│   │  - 高速操作      │       │  - ダッシュボード │          │
-│   │  - パイプライン  │       │  - ドラッグ&ドロップ│         │
+│   │  - Structured    │       │  - Kanban board  │          │
+│   │  - Fast ops      │       │  - Dashboard     │          │
+│   │  - Pipeable      │       │  - Drag & drop   │          │
 │   └────────┬─────────┘       └────────┬─────────┘          │
 │            └──────────┬───────────────┘                     │
 │                       ▼                                      │
@@ -53,37 +53,37 @@ AIコーディングエージェント（Claude Code, Codex CLI, Gemini CLI等�
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 2. Memory Bank - コンテキストを失わない（APMから着想）
+### 2. Memory Bank - Never Lose Context (Inspired by APM)
 
-エージェントのセッションが切れても、プロジェクトの文脈は保持されます。
+Project context persists even when agent sessions end.
 
 ```yaml
-# .agentmine/memory/project-context.md が自動生成・更新
+# .agentmine/memory/project-context.md auto-generated & updated
 Session:
   id: 42
   agent: coder
   task_id: 7
-  summary: "JWT認証を実装。refresh token対応済み"
+  summary: "Implemented JWT auth with refresh token support"
   decisions:
-    - "ライブラリはjose選択（軽量のため）"
-    - "トークン有効期限は15分に設定"
+    - "Chose jose library (lightweight)"
+    - "Set token expiry to 15 minutes"
   next_steps:
-    - "ログアウト機能の実装"
-    - "トークンリフレッシュのテスト追加"
+    - "Implement logout functionality"
+    - "Add token refresh tests"
 ```
 
-新しいセッションでも：
+In a new session:
 ```bash
-agentmine context load  # 前回の文脈を復元
+agentmine context load  # Restore previous context
 ```
 
-### 3. Parallel Execution - 並列でタスクを進める（TSKから着想）
+### 3. Parallel Execution - Run Tasks Concurrently (Inspired by TSK)
 
 ```bash
-# 複数タスクを並列実行
+# Run multiple tasks in parallel
 agentmine task run --parallel 3
 
-# 異なるエージェントで同じタスクを比較
+# Compare same task with different agents
 agentmine task run 5 --agent coder,reviewer --compare
 ```
 
@@ -102,60 +102,60 @@ agentmine task run 5 --agent coder,reviewer --compare
 └─────────────────────────────────────────┘
 ```
 
-### 4. Task Decomposition - PRDから自動分解（TaskMaster AIから着想）
+### 4. Task Decomposition - Auto-generate from PRD (Inspired by TaskMaster AI)
 
 ```bash
-# PRDからタスクを自動生成
+# Generate tasks from PRD
 agentmine task parse-prd ./docs/prd.md
 
-# 複雑なタスクをサブタスクに展開
+# Expand complex tasks into subtasks
 agentmine task expand 3 --depth 2
 
-# 複雑度を分析
+# Analyze complexity
 agentmine task analyze 3
 # → Complexity: 7/10
 # → Estimated subtasks: 4
-# → Suggested approach: "認証部分とAPI部分を分離して実装"
+# → Suggested approach: "Separate auth and API implementation"
 ```
 
-### 5. Agent Definitions - 役割別エージェント設定
+### 5. Agent Definitions - Role-based Agent Configuration
 
 ```yaml
 # .agentmine/config.yaml
 agents:
   planner:
-    description: "設計・計画担当"
+    description: "Design and planning"
     model: claude-opus
     tools: [Read, WebSearch, Grep]
     skills: [analyze, design, estimate]
 
   coder:
-    description: "実装担当"
+    description: "Implementation"
     model: claude-sonnet
     tools: [Read, Write, Edit, Bash, Grep, Glob]
     skills: [implement, test, debug]
 
   reviewer:
-    description: "レビュー担当"
+    description: "Code review"
     model: claude-haiku
     tools: [Read, Grep]
     skills: [review, security-check]
 ```
 
-### 6. Skill System - 再利用可能なプロンプト
+### 6. Skill System - Reusable Prompts
 
 ```yaml
 skills:
-  # 組み込みスキル
+  # Built-in skills
   commit:
     source: builtin
 
-  # カスタムスキル
+  # Custom skills
   api-design:
     source: local
     path: .agentmine/skills/api-design.md
 
-  # コミュニティスキル
+  # Community skills
   security-audit:
     source: remote
     url: https://skills.agentmine.dev/security-audit.md
@@ -165,7 +165,7 @@ skills:
 agentmine skill run security-audit --task 5
 ```
 
-### 7. MCP Integration - エディタとシームレス連携
+### 7. MCP Integration - Seamless Editor Integration
 
 ```json
 // Cursor / Windsurf / Claude Desktop
@@ -179,10 +179,10 @@ agentmine skill run security-audit --task 5
 }
 ```
 
-エディタ内から直接：
-- タスク一覧の取得
-- ステータス更新
-- コンテキストの読み込み
+Directly from your editor:
+- Fetch task list
+- Update status
+- Load context
 
 ---
 
@@ -190,38 +190,38 @@ agentmine skill run security-audit --task 5
 
 | Feature | agentmine | APM | TSK | TaskMaster AI | GitHub Issues |
 |---------|-----------|-----|-----|---------------|---------------|
-| プロジェクト管理 | ✅ 本格的 | ❌ | ❌ | △ | ✅ |
-| CLI（AI向け） | ✅ | ❌ | ✅ | ✅ | △ gh CLI |
+| Project Management | ✅ Full | ❌ | ❌ | △ | ✅ |
+| CLI (AI-friendly) | ✅ | ❌ | ✅ | ✅ | △ gh CLI |
 | Web UI | ✅ | ❌ | ❌ | △ VS Code | ✅ |
 | Memory Bank | ✅ | ✅ | ❌ | ❌ | ❌ |
-| 並列実行 | ✅ | ❌ | ✅ | ❌ | ❌ |
-| タスク分解 | ✅ | ❌ | ❌ | ✅ | ❌ |
-| エージェント定義 | ✅ | △ | ❌ | ❌ | ❌ |
-| スキルシステム | ✅ | ❌ | ❌ | ❌ | ❌ |
-| MCP対応 | ✅ | ❌ | ❌ | ✅ | ❌ |
-| AI/人間の区別 | ✅ | △ | ❌ | ❌ | ❌ |
+| Parallel Execution | ✅ | ❌ | ✅ | ❌ | ❌ |
+| Task Decomposition | ✅ | ❌ | ❌ | ✅ | ❌ |
+| Agent Definitions | ✅ | △ | ❌ | ❌ | ❌ |
+| Skill System | ✅ | ❌ | ❌ | ❌ | ❌ |
+| MCP Support | ✅ | ❌ | ❌ | ✅ | ❌ |
+| AI/Human Distinction | ✅ | △ | ❌ | ❌ | ❌ |
 
 ---
 
 ## Quick Start
 
 ```bash
-# インストール
+# Install
 npm install -g agentmine
 
-# プロジェクト初期化
+# Initialize project
 agentmine init
 
-# タスク作成
-agentmine task add "ユーザー認証機能の実装" -p high -t feature
+# Create task
+agentmine task add "Implement user authentication" -p high -t feature
 
-# エージェントに割り当て
+# Assign to agent
 agentmine task assign 1 coder
 
-# 実行開始（ブランチ自動作成）
+# Start work (auto-creates branch)
 agentmine task start 1
 
-# 完了（PR自動作成）
+# Complete (auto-creates PR)
 agentmine task done 1
 ```
 
@@ -233,7 +233,7 @@ agentmine task done 1
 
 ```bash
 # CRUD
-agentmine task add "タイトル" [-p priority] [-t type]
+agentmine task add "title" [-p priority] [-t type]
 agentmine task list [--status open|in_progress|review|done]
 agentmine task show <id>
 agentmine task update <id> [--title] [--priority] [--status]
@@ -241,14 +241,14 @@ agentmine task delete <id>
 
 # Workflow
 agentmine task assign <id> <agent|human> [--ai|--human]
-agentmine task start <id>              # ブランチ作成、ステータス変更
-agentmine task done <id>               # PR作成、ステータス変更
+agentmine task start <id>              # Create branch, change status
+agentmine task done <id>               # Create PR, change status
 
 # Advanced
-agentmine task parse-prd <file>        # PRDからタスク生成
-agentmine task expand <id>             # サブタスク展開
-agentmine task analyze <id>            # 複雑度分析
-agentmine task run --parallel <n>      # 並列実行
+agentmine task parse-prd <file>        # Generate tasks from PRD
+agentmine task expand <id>             # Expand into subtasks
+agentmine task analyze <id>            # Analyze complexity
+agentmine task run --parallel <n>      # Parallel execution
 ```
 
 ### Agent Management
@@ -256,15 +256,15 @@ agentmine task run --parallel <n>      # 並列実行
 ```bash
 agentmine agent list
 agentmine agent show <name>
-agentmine agent run <name> "プロンプト" [--task <id>]
+agentmine agent run <name> "prompt" [--task <id>]
 ```
 
 ### Context / Memory
 
 ```bash
-agentmine context show                 # 現在のコンテキスト表示
-agentmine context load [--session <id>] # コンテキスト復元
-agentmine context save                 # 手動保存
+agentmine context show                 # Show current context
+agentmine context load [--session <id>] # Restore context
+agentmine context save                 # Manual save
 ```
 
 ### Skills
@@ -289,19 +289,19 @@ agentmine ui --port 8080
 ```
 agentmine/
 ├── packages/
-│   ├── cli/              # CLI アプリケーション
+│   ├── cli/              # CLI application
 │   │   └── src/
 │   │       ├── commands/ # task, agent, skill, context, ui
-│   │       └── mcp/      # MCP サーバー
+│   │       └── mcp/      # MCP server
 │   ├── web/              # Next.js Web UI
 │   │   └── src/
 │   │       ├── app/      # App Router
 │   │       └── components/
-│   └── core/             # 共有ロジック
+│   └── core/             # Shared logic
 │       └── src/
 │           ├── db/       # Drizzle ORM
 │           ├── models/   # Task, Agent, Session, Skill
-│           └── services/ # ビジネスロジック
+│           └── services/ # Business logic
 ├── pnpm-workspace.yaml
 ├── turbo.json
 └── package.json
@@ -311,52 +311,52 @@ agentmine/
 
 | Layer | Technology | Reason |
 |-------|------------|--------|
-| CLI | TypeScript + Commander | Web UIと型共有、豊富なエコシステム |
-| Web UI | Next.js 15 + shadcn/ui | App Router、Server Components |
-| Database | SQLite / PostgreSQL | ローカル↔チーム両対応 |
-| ORM | Drizzle | 型安全、軽量、マルチDB |
-| Monorepo | pnpm + Turborepo | 高速ビルド、キャッシュ |
+| CLI | TypeScript + Commander | Type sharing with Web UI, rich ecosystem |
+| Web UI | Next.js 15 + shadcn/ui | App Router, Server Components |
+| Database | SQLite / PostgreSQL | Local ↔ Team flexibility |
+| ORM | Drizzle | Type-safe, lightweight, multi-DB |
+| Monorepo | pnpm + Turborepo | Fast builds, caching |
 
 ---
 
 ## Roadmap
 
 ### Phase 1: Foundation (Current)
-- [x] Monorepo構造セットアップ
-- [ ] CLI基本コマンド（task CRUD）
-- [ ] SQLite統合
-- [ ] 基本的なタスクワークフロー
+- [x] Monorepo structure setup
+- [ ] Basic CLI commands (task CRUD)
+- [ ] SQLite integration
+- [ ] Basic task workflow
 
 ### Phase 2: Memory & Context
-- [ ] Memory Bank実装
-- [ ] セッション記録・復元
-- [ ] コンテキスト自動要約
+- [ ] Memory Bank implementation
+- [ ] Session recording & restoration
+- [ ] Auto context summarization
 
 ### Phase 3: Agent Integration
-- [ ] エージェント定義YAML
-- [ ] Claude Code / Codex連携
-- [ ] スキルシステム
+- [ ] Agent definition YAML
+- [ ] Claude Code / Codex integration
+- [ ] Skill system
 
 ### Phase 4: Advanced Features
-- [ ] 並列実行エンジン
-- [ ] PRD→タスク分解
-- [ ] 複雑度分析（AI利用）
+- [ ] Parallel execution engine
+- [ ] PRD → Task decomposition
+- [ ] Complexity analysis (AI-powered)
 
 ### Phase 5: Web UI
-- [ ] ダッシュボード
-- [ ] カンバンボード
-- [ ] リアルタイム更新（WebSocket）
+- [ ] Dashboard
+- [ ] Kanban board
+- [ ] Real-time updates (WebSocket)
 
 ### Phase 6: MCP & Ecosystem
-- [ ] MCPサーバー実装
-- [ ] Cursor / Windsurf連携
-- [ ] スキルマーケットプレイス
+- [ ] MCP server implementation
+- [ ] Cursor / Windsurf integration
+- [ ] Skill marketplace
 
 ### Phase 7: Team & Scale
-- [ ] PostgreSQL対応
-- [ ] マルチユーザー
-- [ ] GitHub Issues同期
-- [ ] Slack/Discord通知
+- [ ] PostgreSQL support
+- [ ] Multi-user
+- [ ] GitHub Issues sync
+- [ ] Slack/Discord notifications
 
 ---
 
@@ -371,9 +371,9 @@ cd agentmine
 pnpm install
 
 # Development
-pnpm dev          # 全パッケージ同時起動
-pnpm cli dev      # CLIのみ
-pnpm web dev      # Web UIのみ
+pnpm dev          # All packages
+pnpm cli dev      # CLI only
+pnpm web dev      # Web UI only
 
 # Build
 pnpm build
@@ -389,13 +389,13 @@ cd packages/cli && pnpm link --global
 
 ## Inspiration & Credits
 
-agentmineは以下のプロジェクトから多くの着想を得ています：
+agentmine draws inspiration from these excellent projects:
 
-- [Agentic Project Management (APM)](https://github.com/sdi2200262/agentic-project-management) - Memory Bank、Handoverプロトコル
-- [TSK](https://github.com/dtormoen/tsk) - 並列実行、サンドボックスアーキテクチャ
-- [TaskMaster AI](https://github.com/eyaltoledano/claude-task-master) - PRD分解、MCP連携
-- [Claude Squad](https://github.com/smtg-ai/claude-squad) - マルチエージェント管理
-- [Redmine](https://www.redmine.org/) - 本格的なプロジェクト管理のUX
+- [Agentic Project Management (APM)](https://github.com/sdi2200262/agentic-project-management) - Memory Bank, Handover protocols
+- [TSK](https://github.com/dtormoen/tsk) - Parallel execution, sandbox architecture
+- [TaskMaster AI](https://github.com/eyaltoledano/claude-task-master) - PRD decomposition, MCP integration
+- [Claude Squad](https://github.com/smtg-ai/claude-squad) - Multi-agent management
+- [Redmine](https://www.redmine.org/) - Full-featured project management UX
 
 ---
 
