@@ -1,6 +1,7 @@
 import { execSync } from 'node:child_process'
-import { existsSync, mkdirSync, rmSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, mkdirSync, rmSync, readdirSync, statSync, chmodSync, unlinkSync } from 'node:fs'
+import { join, relative } from 'node:path'
+import { minimatch } from 'minimatch'
 import { AGENTMINE_DIR } from '../db/index.js'
 
 // ============================================
@@ -23,6 +24,26 @@ export interface CreateWorktreeOptions {
   taskId: number
   /** Base branch to create from (default: current branch) */
   baseBranch?: string
+}
+
+export interface AgentScope {
+  /** Files that can be read (glob patterns) */
+  read?: string[]
+  /** Files that can be written (glob patterns) */
+  write?: string[]
+  /** Files to exclude completely (glob patterns) */
+  exclude?: string[]
+}
+
+export interface ApplyScopeResult {
+  /** Number of files deleted (excluded) */
+  deletedCount: number
+  /** Number of files made read-only */
+  readOnlyCount: number
+  /** List of deleted file paths */
+  deletedFiles: string[]
+  /** List of read-only file paths */
+  readOnlyFiles: string[]
 }
 
 // ============================================
@@ -265,6 +286,214 @@ export class WorktreeService {
       }).trim()
     } catch {
       return 'main'
+    }
+  }
+
+  /**
+   * Apply scope restrictions to a worktree
+   * - exclude: Uses git sparse-checkout to hide files (git won't see them as deleted)
+   * - write: Files outside write patterns become read-only
+   */
+  applyScope(taskId: number, scope: AgentScope): ApplyScopeResult {
+    const worktreePath = this.getWorktreePath(taskId)
+
+    if (!this.exists(taskId)) {
+      throw new WorktreeNotFoundError(taskId)
+    }
+
+    const result: ApplyScopeResult = {
+      deletedCount: 0,
+      readOnlyCount: 0,
+      deletedFiles: [],
+      readOnlyFiles: [],
+    }
+
+    const excludePatterns = scope.exclude || []
+    const writePatterns = scope.write || ['**/*']
+
+    // Apply sparse-checkout to exclude files (git won't track them as deleted)
+    if (excludePatterns.length > 0) {
+      this.applySparseCheckout(worktreePath, excludePatterns, result)
+    }
+
+    // Get all remaining files in worktree
+    const allFiles = this.getAllFiles(worktreePath)
+
+    for (const filePath of allFiles) {
+      const relativePath = relative(worktreePath, filePath)
+
+      // Skip .git directory
+      if (relativePath.startsWith('.git/') || relativePath === '.git') {
+        continue
+      }
+
+      // Check if file is writable (matches write patterns)
+      // Files NOT in write patterns become read-only
+      const isWritable = writePatterns.some(pattern =>
+        minimatch(relativePath, pattern, { dot: true })
+      )
+
+      if (!isWritable) {
+        try {
+          // Make file read-only (remove write permission)
+          const stat = statSync(filePath)
+          const newMode = stat.mode & ~0o222 // Remove write bits
+          chmodSync(filePath, newMode)
+          result.readOnlyCount++
+          result.readOnlyFiles.push(relativePath)
+        } catch {
+          // Ignore chmod errors
+        }
+      }
+    }
+
+    return result
+  }
+
+  /**
+   * Apply sparse-checkout to exclude files from worktree
+   * This removes files physically but git doesn't see them as deleted
+   */
+  private applySparseCheckout(
+    worktreePath: string,
+    excludePatterns: string[],
+    result: ApplyScopeResult
+  ): void {
+    try {
+      // Initialize sparse-checkout in cone mode
+      execSync('git sparse-checkout init --no-cone', {
+        cwd: worktreePath,
+        encoding: 'utf-8',
+        stdio: 'pipe',
+      })
+
+      // Build sparse-checkout patterns: include all, then exclude specific patterns
+      // Format: /* includes all, !pattern excludes
+      const patterns = ['/*', '/**/*']
+      for (const pattern of excludePatterns) {
+        patterns.push(`!${pattern}`)
+      }
+
+      // Set sparse-checkout patterns
+      execSync(`git sparse-checkout set ${patterns.map(p => `'${p}'`).join(' ')}`, {
+        cwd: worktreePath,
+        encoding: 'utf-8',
+        stdio: 'pipe',
+      })
+
+      // Count excluded files (files that no longer exist)
+      const allFilesBeforeSparse = this.getAllTrackedFiles(worktreePath)
+      for (const filePath of allFilesBeforeSparse) {
+        const relativePath = relative(worktreePath, filePath)
+        const shouldExclude = excludePatterns.some(pattern =>
+          minimatch(relativePath, pattern, { dot: true })
+        )
+        if (shouldExclude) {
+          result.deletedCount++
+          result.deletedFiles.push(relativePath)
+        }
+      }
+    } catch (error) {
+      // If sparse-checkout fails, fall back to manual deletion (with warning)
+      console.warn(`Warning: sparse-checkout failed, excluded files may appear as deleted in git`)
+      this.manualExclude(worktreePath, excludePatterns, result)
+    }
+  }
+
+  /**
+   * Fallback: manually delete excluded files (may show as deleted in git)
+   */
+  private manualExclude(
+    worktreePath: string,
+    excludePatterns: string[],
+    result: ApplyScopeResult
+  ): void {
+    const allFiles = this.getAllFiles(worktreePath)
+
+    for (const filePath of allFiles) {
+      const relativePath = relative(worktreePath, filePath)
+
+      if (relativePath.startsWith('.git/') || relativePath === '.git') {
+        continue
+      }
+
+      const shouldExclude = excludePatterns.some(pattern =>
+        minimatch(relativePath, pattern, { dot: true })
+      )
+
+      if (shouldExclude) {
+        try {
+          unlinkSync(filePath)
+          result.deletedCount++
+          result.deletedFiles.push(relativePath)
+        } catch {
+          // Ignore deletion errors
+        }
+      }
+    }
+
+    this.removeEmptyDirectories(worktreePath)
+  }
+
+  /**
+   * Get all tracked files in git
+   */
+  private getAllTrackedFiles(worktreePath: string): string[] {
+    try {
+      const output = execSync('git ls-files', {
+        cwd: worktreePath,
+        encoding: 'utf-8',
+      })
+      return output.trim().split('\n').filter(Boolean).map(f => join(worktreePath, f))
+    } catch {
+      return []
+    }
+  }
+
+  /**
+   * Get all files recursively in a directory
+   */
+  private getAllFiles(dir: string): string[] {
+    const files: string[] = []
+
+    const entries = readdirSync(dir, { withFileTypes: true })
+
+    for (const entry of entries) {
+      const fullPath = join(dir, entry.name)
+
+      if (entry.isDirectory()) {
+        // Skip .git directory
+        if (entry.name === '.git') continue
+        files.push(...this.getAllFiles(fullPath))
+      } else if (entry.isFile()) {
+        files.push(fullPath)
+      }
+    }
+
+    return files
+  }
+
+  /**
+   * Remove empty directories recursively
+   */
+  private removeEmptyDirectories(dir: string): void {
+    const entries = readdirSync(dir, { withFileTypes: true })
+
+    for (const entry of entries) {
+      if (entry.isDirectory() && entry.name !== '.git') {
+        const fullPath = join(dir, entry.name)
+        this.removeEmptyDirectories(fullPath)
+
+        // Check if directory is now empty
+        try {
+          const remaining = readdirSync(fullPath)
+          if (remaining.length === 0) {
+            rmSync(fullPath, { recursive: true })
+          }
+        } catch {
+          // Ignore errors
+        }
+      }
     }
   }
 }

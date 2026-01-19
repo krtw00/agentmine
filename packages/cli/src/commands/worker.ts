@@ -1,5 +1,6 @@
 import { Command } from 'commander'
 import chalk from 'chalk'
+import { spawn } from 'node:child_process'
 import {
   createDb,
   isProjectInitialized,
@@ -12,6 +13,7 @@ import {
   WorktreeAlreadyExistsError,
   WorktreeNotFoundError,
   type Task,
+  type AgentDefinition,
 } from '@agentmine/core'
 
 // ============================================
@@ -44,17 +46,132 @@ interface OutputOptions {
 }
 
 // ============================================
+// AI Client Launcher
+// ============================================
+
+interface ClientConfig {
+  command: string
+  args: (prompt: string, model?: string) => string[]
+}
+
+// Non-interactive (autonomous) mode configurations for each AI client
+const CLIENT_CONFIGS: Record<string, ClientConfig> = {
+  'claude-code': {
+    command: 'claude',
+    args: (prompt, model) => {
+      // Non-interactive: --dangerously-skip-permissions for autonomous execution
+      const args = ['--dangerously-skip-permissions']
+      if (model) args.push('--model', model)
+      args.push(prompt)
+      return args
+    },
+  },
+  'claude': {
+    command: 'claude',
+    args: (prompt, model) => {
+      const args = ['--dangerously-skip-permissions']
+      if (model) args.push('--model', model)
+      args.push(prompt)
+      return args
+    },
+  },
+  'codex': {
+    command: 'codex',
+    args: (prompt, model) => {
+      // Non-interactive: --full-auto for autonomous execution
+      const args = ['--full-auto']
+      if (model) args.push('-m', model)
+      args.push(prompt)
+      return args
+    },
+  },
+  'opencode': {
+    command: 'opencode',
+    args: (prompt) => {
+      // OpenCode: --auto-approve for autonomous execution
+      return ['--auto-approve', prompt]
+    },
+  },
+  'aider': {
+    command: 'aider',
+    args: (prompt) => {
+      // Aider: --yes for autonomous execution
+      return ['--yes', '--message', prompt]
+    },
+  },
+  'gemini': {
+    command: 'gemini',
+    args: (prompt, model) => {
+      // Gemini CLI: -y for auto-approve
+      const args = ['-y']
+      if (model) args.push('-m', model)
+      args.push(prompt)
+      return args
+    },
+  },
+  'gemini-cli': {
+    command: 'gemini',
+    args: (prompt, model) => {
+      const args = ['-y']
+      if (model) args.push('-m', model)
+      args.push(prompt)
+      return args
+    },
+  },
+}
+
+function getClientConfig(clientName: string): ClientConfig | null {
+  const normalized = clientName.toLowerCase()
+  return CLIENT_CONFIGS[normalized] || null
+}
+
+async function launchWorkerAI(
+  client: string,
+  prompt: string,
+  cwd: string,
+  model?: string
+): Promise<number> {
+  const config = getClientConfig(client)
+
+  if (!config) {
+    console.error(chalk.red(`Unknown AI client: ${client}`))
+    console.log(chalk.gray('Supported clients: ' + Object.keys(CLIENT_CONFIGS).join(', ')))
+    return 1
+  }
+
+  const args = config.args(prompt, model)
+
+  return new Promise((resolve) => {
+    const child = spawn(config.command, args, {
+      cwd,
+      stdio: 'inherit', // Pass through stdin/stdout/stderr for interactive session
+      shell: false, // Don't use shell to avoid escaping issues with complex prompts
+    })
+
+    child.on('error', (error) => {
+      console.error(chalk.red(`Failed to start ${client}: ${error.message}`))
+      resolve(1)
+    })
+
+    child.on('close', (code) => {
+      resolve(code ?? 0)
+    })
+  })
+}
+
+// ============================================
 // Commands
 // ============================================
 
 export const workerCommand = new Command('worker')
   .description('Worker commands for task execution')
 
-// worker run - Set up worktree and show instructions
+// worker run - Set up worktree and optionally launch AI
 workerCommand
   .command('run <taskId>')
-  .description('Create worktree for a task and show instructions')
+  .description('Create worktree for a task and optionally start Worker AI')
   .option('-a, --agent <name>', 'Agent name (default: coder)', 'coder')
+  .option('--exec [client]', 'Start Worker AI (uses agent client if not specified)')
   .option('--no-worktree', 'Skip worktree creation (work in current directory)')
   .option('--json', 'JSON output')
   .action(async (taskId, options) => {
@@ -76,11 +193,14 @@ workerCommand
     }
 
     let worktreeInfo = null
+    let scopeApplied = false
 
     // Create worktree (unless --no-worktree)
     if (options.worktree !== false) {
+      let isNewWorktree = false
       try {
         worktreeInfo = worktreeService.create({ taskId: parseInt(taskId) })
+        isNewWorktree = true
       } catch (error) {
         if (error instanceof WorktreeAlreadyExistsError) {
           // Worktree already exists, get info
@@ -91,6 +211,21 @@ workerCommand
         } else {
           console.error(chalk.red(`Failed to create worktree: ${error instanceof Error ? error.message : 'Unknown error'}`))
           process.exit(1)
+        }
+      }
+
+      // Apply scope restrictions to worktree (only for new worktrees)
+      if (isNewWorktree && agent.scope) {
+        try {
+          const scopeResult = worktreeService.applyScope(parseInt(taskId), agent.scope)
+          scopeApplied = true
+          if (!options.json && (scopeResult.deletedCount > 0 || scopeResult.readOnlyCount > 0)) {
+            console.log(chalk.gray(`  Scope applied: ${scopeResult.deletedCount} files excluded, ${scopeResult.readOnlyCount} files read-only`))
+          }
+        } catch (error) {
+          if (!options.json) {
+            console.log(chalk.yellow(`⚠ Failed to apply scope: ${error instanceof Error ? error.message : 'Unknown error'}`))
+          }
         }
       }
 
@@ -122,8 +257,14 @@ workerCommand
     // Build prompt
     const prompt = buildPromptFromTask(task, memoryService)
 
-    // Build agent command examples
-    const agentCommand = agentService.buildCommand(agent, prompt)
+    // Determine client to use
+    // --exec true (no value) -> use agent's client
+    // --exec <client> -> use specified client
+    // no --exec -> show instructions only
+    const execClient = options.exec === true ? agent.client : options.exec
+
+    // Working directory for AI
+    const workingDir = worktreeInfo?.path || process.cwd()
 
     if (options.json) {
       console.log(JSON.stringify({
@@ -131,19 +272,19 @@ workerCommand
         session: { id: session.id, agentName: session.agentName },
         worktree: worktreeInfo,
         prompt,
-        commands: {
-          claudeCode: agentCommand,
-          codex: `codex "${prompt.replace(/"/g, '\\"').slice(0, 500)}..."`,
-          opencode: `opencode "${prompt.replace(/"/g, '\\"').slice(0, 500)}..."`,
-        },
+        exec: execClient || null,
       }, null, 2))
+
+      if (execClient) {
+        const exitCode = await launchWorkerAI(execClient, prompt, workingDir, agent.model)
+        process.exit(exitCode)
+      }
       return
     }
 
-    // Display instructions
+    // Display status
     console.log('')
     console.log(chalk.green('✓ Worker environment ready'))
-    console.log('')
 
     if (worktreeInfo) {
       console.log(chalk.gray('Worktree: '), chalk.cyan(worktreeInfo.path))
@@ -152,6 +293,30 @@ workerCommand
     console.log(chalk.gray('Session:  '), chalk.cyan(`#${session.id}`))
     console.log(chalk.gray('Task:     '), chalk.cyan(`#${task.id}: ${task.title}`))
     console.log('')
+
+    // If --exec specified, launch AI
+    if (execClient) {
+      console.log(chalk.green(`✓ Starting Worker AI (${execClient})...`))
+      console.log('')
+
+      const exitCode = await launchWorkerAI(execClient, prompt, workingDir, agent.model)
+
+      console.log('')
+      if (exitCode === 0) {
+        console.log(chalk.green(`✓ Worker AI exited (code: ${exitCode})`))
+      } else {
+        console.log(chalk.yellow(`⚠ Worker AI exited (code: ${exitCode})`))
+      }
+
+      console.log('')
+      console.log(chalk.bold('To complete the task:'))
+      console.log(chalk.cyan(`  agentmine worker done ${taskId}`))
+      console.log('')
+      return
+    }
+
+    // Show instructions (no --exec)
+    const agentCommand = agentService.buildCommand(agent, prompt)
 
     console.log(chalk.bold('To start working:'))
     console.log('')
@@ -164,14 +329,8 @@ workerCommand
     console.log(chalk.gray('  # Claude Code'))
     console.log(chalk.white(`  ${agentCommand}`))
     console.log('')
-    console.log(chalk.gray('  # Codex'))
-    console.log(chalk.white(`  codex "Task #${task.id}: ${task.title}"`))
-    console.log('')
-    console.log(chalk.gray('  # OpenCode'))
-    console.log(chalk.white(`  opencode "Task #${task.id}: ${task.title}"`))
-    console.log('')
-    console.log(chalk.gray('  # Aider'))
-    console.log(chalk.white(`  aider --message "Task #${task.id}: ${task.title}"`))
+    console.log(chalk.gray('  # Or run with --exec to auto-start:'))
+    console.log(chalk.white(`  agentmine worker run ${taskId} --exec`))
     console.log('')
 
     console.log(chalk.bold('When done:'))

@@ -293,13 +293,20 @@ Arguments:
 
 Options:
   -a, --agent <name>  エージェント名 (default: coder)
+  --exec [client]     Worker AIを起動（clientを指定するとagent定義を上書き）
   --no-worktree       worktree作成をスキップ（カレントディレクトリで作業）
   --json              JSON出力
 
 Examples:
+  # 環境準備のみ（指示を表示）
   agentmine worker run 1
-  agentmine worker run 1 --agent reviewer
-  agentmine worker run 1 --no-worktree
+
+  # Worker AIを起動（agent定義のclientを使用）
+  agentmine worker run 1 --exec
+
+  # 特定のクライアントで起動（agent定義を上書き）
+  agentmine worker run 1 --exec codex
+  agentmine worker run 1 --exec aider
 ```
 
 **動作:**
@@ -307,9 +314,10 @@ Examples:
 2. Git worktree作成（`.agentmine/worktrees/task-<id>/`）
 3. ブランチ作成（`task-<id>`）
 4. セッション開始（DBに記録）
-5. 各AIクライアント向けの起動コマンドを表示
+5. `--exec`指定時: Worker AIプロセスを起動し、終了を待機
+6. `--exec`なし: 各AIクライアント向けの起動コマンドを表示
 
-**出力例:**
+**出力例（--execなし）:**
 
 ```
 ✓ Worker environment ready
@@ -324,22 +332,35 @@ To start working:
   cd /project/.agentmine/worktrees/task-1
 
   # Claude Code
-  claude --print "# Task #1: 認証機能実装..."
+  claude --model sonnet "# Task #1: 認証機能実装..."
 
-  # Codex
-  codex "Task #1: 認証機能実装"
-
-  # OpenCode
-  opencode "Task #1: 認証機能実装"
-
-  # Aider
-  aider --message "Task #1: 認証機能実装"
+  # Or run with --exec to auto-start:
+  agentmine worker run 1 --exec
 
 When done:
   agentmine worker done 1
 ```
 
-**設計思想:** agentmineはエージェント非依存。環境（worktree、ブランチ、セッション）を準備し、プロンプトを生成する。Worker AIの起動はOrchestratorの責務。Claude Code, Codex, OpenCode, Aider等どのAIクライアントでも使用可能。
+**出力例（--exec）:**
+
+```
+✓ Worker environment ready
+✓ Starting Worker AI (claude-code)...
+
+Worktree:  /project/.agentmine/worktrees/task-1
+Branch:    task-1
+Session:   #1
+
+[Worker AI起動、対話セッション]
+
+✓ Worker AI exited (code: 0)
+```
+
+**設計思想:**
+- agentmineはエージェント非依存。環境準備とWorker起動を担う
+- `--exec`でOrchestratorがWorkerを自動起動できる
+- agent定義の`client`がデフォルト、`--exec <client>`で上書き可能
+- 対応クライアント: claude-code, codex, opencode, aider, gemini等
 
 ### worker done
 
