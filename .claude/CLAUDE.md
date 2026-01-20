@@ -61,6 +61,16 @@ pnpm lint         # リント
 - 関数は単一責任
 - エラーハンドリングを適切に行う
 
+## Git コミット規約
+
+- Conventional Commits形式を使用
+- Co-Authored-Byタグを使用する場合は独自ドメインを使用:
+  - Claude Code: `Co-Authored-By: Claude <claude@agentmine.local>`
+  - Codex: `Co-Authored-By: Codex <codex@agentmine.local>`
+  - その他AI: `<ai-name>@agentmine.local` 形式を使用
+- 外部サービスのメールアドレス（`noreply@anthropic.com`, `noreply@openai.com`等）は使用しない
+  - 理由: GitHubが意図しないユーザーアカウントにマッピングする可能性があるため
+
 ## 重要な設計原則
 
 1. **DBマスター**: すべてのデータ（タスク、Agent、Memory、設定）はDBで管理
