@@ -8,7 +8,7 @@ agentmineは**スコープ制御**により、Workerがアクセスできるフ�
 
 ## 原則
 
-**exclude（除外） → read（参照） → write（編集）の優先順位で、Worker作業環境を物理的に制限する。**
+**デフォルトで全ファイル読み取り可能。excludeで除外、writeで編集許可を明示的に制御。**
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -18,10 +18,11 @@ agentmineは**スコープ制御**により、Workerがアクセスできるフ�
 │  【最優先】exclude                                            │
 │    → sparse-checkoutで物理的に除外（存在しない）             │
 │                                                              │
-│  【次優先】read                                               │
+│  【デフォルト】read: すべて（excludeを除く）                  │
 │    → worktreeに存在、参照可能                                 │
+│    → 明示的なread指定は任意（デフォルト: すべて）             │
 │                                                              │
-│  【最後】write                                                │
+│  【明示的】write                                              │
 │    → 明示的に指定されたファイルのみ編集可能                    │
 │    → それ以外は chmod a-w で読み取り専用                     │
 │                                                              │
@@ -82,49 +83,69 @@ scope: src/payment/
 
 ### フィールド定義
 
-| フィールド | 説明 | 物理的実装 |
-|-----------|------|-----------|
-| `exclude` | アクセス不可 | sparse-checkoutで除外（存在しない） |
-| `read` | 参照可能 | worktreeに存在 |
-| `write` | 編集可能 | 明示的に指定されたファイルのみ |
-| （暗黙） | read - write - exclude | chmod a-w で読み取り専用 |
+| フィールド | 説明 | デフォルト値 | 物理的実装 |
+|-----------|------|------------|-----------|
+| `exclude` | アクセス不可 | `[]`（なし） | sparse-checkoutで除外（存在しない） |
+| `read` | 参照可能 | `["**/*"]`（すべて） | worktreeに存在 |
+| `write` | 編集可能 | `[]`（なし） | 明示的に指定されたファイルのみ |
+| （暗黙） | read対象 - write対象 - exclude対象 | - | chmod a-w で読み取り専用 |
 
 ### 優先順位
 
 ```
-exclude → read → write
+exclude → read（デフォルト: すべて） → write
 ```
 
 **評価ロジック**:
 1. **exclude にマッチ → 除外**（sparse-checkout）
-2. exclude でない && **read にマッチ → 参照可能**（存在）
+2. exclude でない && **read にマッチ（デフォルト: すべて）→ 参照可能**（存在）
 3. exclude でない && read にマッチ && **write にマッチ → 編集可能**
 4. exclude でない && read にマッチ && **write に非マッチ → 読み取り専用**（chmod a-w）
+
+**重要**: `read`を省略した場合、デフォルトで`["**/*"]`（excludeを除く全ファイル）が適用されます。
 
 ---
 
 ## Agent定義例
+
+### 基本パターン（read省略 - 推奨）
 
 ```yaml
 name: coder
 client: claude-code
 model: sonnet
 scope:
-  # 優先順位: exclude → read → write
-
-  exclude:                 # 最優先: sparse-checkoutで物理的に除外
+  exclude:                 # 除外（これ以外は自動的に読み取り可能）
     - "**/*.env"          # すべての.envファイル
     - "**/secrets/**"      # secretsディレクトリ配下すべて
     - "**/.aws/**"         # AWS認証情報
     - "**/node_modules/**" # 依存ライブラリ
 
-  read:                    # 参照可能
-    - "**/*"               # 全ファイル（excludeを除く）
+  # read: 省略可能（デフォルト: excludeを除く全ファイル）
 
   write:                   # 編集可能（明示的に指定）
     - "src/**"             # srcディレクトリ配下
     - "tests/**"           # testsディレクトリ配下
     - "package.json"       # package.json
+```
+
+### 明示的readパターン（特定ファイルのみ参照させたい場合）
+
+```yaml
+name: reviewer
+client: claude-code
+model: sonnet
+scope:
+  exclude:
+    - "**/*.env"
+    - "**/node_modules/**"
+
+  read:                    # 明示的に参照可能ファイルを限定
+    - "src/**"
+    - "docs/**"
+    - "README.md"
+
+  write: []                # 読み取り専用Worker（編集不可）
 ```
 
 ---
