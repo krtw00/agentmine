@@ -3,6 +3,7 @@ import chalk from 'chalk'
 import { spawn } from 'node:child_process'
 import {
   createDb,
+  initializeDb,
   isProjectInitialized,
   TaskService,
   SessionService,
@@ -13,7 +14,7 @@ import {
   WorktreeAlreadyExistsError,
   WorktreeNotFoundError,
   type Task,
-  type AgentDefinition,
+  type Agent,
 } from '@agentmine/core'
 
 // ============================================
@@ -29,14 +30,15 @@ function ensureInitialized(): boolean {
   return true
 }
 
-function getServices() {
+async function getServices() {
   const db = createDb()
+  await initializeDb(db)
   return {
     taskService: new TaskService(db),
     sessionService: new SessionService(db),
-    agentService: new AgentService(),
+    agentService: new AgentService(db),
     worktreeService: new WorktreeService(),
-    memoryService: new MemoryService(),
+    memoryService: new MemoryService(db),
   }
 }
 
@@ -207,7 +209,7 @@ workerCommand
   .option('--json', 'JSON output')
   .action(async (taskId, options) => {
     ensureInitialized()
-    const { taskService, sessionService, agentService, worktreeService, memoryService } = getServices()
+    const { taskService, sessionService, agentService, worktreeService, memoryService } = await getServices()
 
     // Get task
     const task = await taskService.findById(parseInt(taskId))
@@ -217,7 +219,7 @@ workerCommand
     }
 
     // Get agent
-    const agent = agentService.findByName(options.agent)
+    const agent = await agentService.findByName(options.agent)
     if (!agent) {
       console.error(chalk.red(`Agent "${options.agent}" not found`))
       process.exit(5)
@@ -433,7 +435,7 @@ workerCommand
   .option('--json', 'JSON output')
   .action(async (taskId, options) => {
     ensureInitialized()
-    const { taskService, sessionService, worktreeService } = getServices()
+    const { taskService, sessionService, worktreeService } = await getServices()
 
     // Get task
     const task = await taskService.findById(parseInt(taskId))
@@ -504,7 +506,7 @@ workerCommand
   .option('--json', 'JSON output')
   .action(async (options) => {
     ensureInitialized()
-    const { worktreeService, taskService, sessionService } = getServices()
+    const { worktreeService, taskService, sessionService } = await getServices()
 
     const worktrees = worktreeService.list()
 
@@ -545,7 +547,7 @@ workerCommand
   .option('--json', 'JSON output')
   .action(async (taskId, options) => {
     ensureInitialized()
-    const { worktreeService } = getServices()
+    const { worktreeService } = await getServices()
 
     try {
       worktreeService.remove(parseInt(taskId), options.force)
@@ -576,7 +578,7 @@ workerCommand
   .option('--json', 'JSON output')
   .action(async (taskId, options: OutputOptions & { agent?: string }) => {
     ensureInitialized()
-    const { taskService, agentService, memoryService } = getServices()
+    const { taskService, agentService, memoryService } = await getServices()
 
     const task = await taskService.findById(parseInt(taskId))
     if (!task) {
@@ -585,9 +587,9 @@ workerCommand
     }
 
     // Get agent if specified
-    let agent: AgentDefinition | undefined
+    let agent: Agent | undefined
     if (options.agent) {
-      agent = agentService.findByName(options.agent) ?? undefined
+      agent = await agentService.findByName(options.agent) ?? undefined
       if (!agent) {
         console.error(chalk.red(`Agent "${options.agent}" not found`))
         process.exit(5)
@@ -615,7 +617,7 @@ workerCommand
   .option('--json', 'JSON output')
   .action(async (taskId, options: OutputOptions) => {
     ensureInitialized()
-    const { taskService, sessionService, worktreeService } = getServices()
+    const { taskService, sessionService, worktreeService } = await getServices()
 
     const task = await taskService.findById(parseInt(taskId))
     if (!task) {
@@ -702,7 +704,7 @@ workerCommand
   .option('--json', 'JSON output')
   .action(async (taskIds: string[], options) => {
     ensureInitialized()
-    const { sessionService, taskService } = getServices()
+    const { sessionService, taskService } = await getServices()
 
     // If no task IDs provided, wait for all running sessions with PIDs
     let sessions
@@ -792,7 +794,7 @@ workerCommand
   .option('--json', 'JSON output')
   .action(async (taskIds: string[], options) => {
     ensureInitialized()
-    const { sessionService } = getServices()
+    const { sessionService } = await getServices()
 
     const results: Array<{ taskId: number; pid: number; stopped: boolean; error?: string }> = []
 
@@ -848,7 +850,7 @@ workerCommand
   .option('--json', 'JSON output')
   .action(async (taskId: string | undefined, options) => {
     ensureInitialized()
-    const { sessionService, taskService, worktreeService } = getServices()
+    const { sessionService, taskService, worktreeService } = await getServices()
 
     if (taskId) {
       // Show status for specific task
@@ -971,7 +973,7 @@ function sleep(ms: number): Promise<void> {
 
 interface BuildPromptOptions {
   task: Task
-  agent?: AgentDefinition
+  agent?: Agent
   agentService?: AgentService
   memoryService?: MemoryService
 }

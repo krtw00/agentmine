@@ -9,10 +9,11 @@ import {
   AgentService,
   MemoryService,
   ConfigService,
+  type Db,
   type Task,
   type Session,
-  type AgentDefinition,
-  type MemoryEntry,
+  type Agent,
+  type Memory,
 } from '@agentmine/core'
 
 // ============================================
@@ -52,19 +53,26 @@ interface McpTool {
 // ============================================
 
 class McpServer {
+  private db: Db
   private taskService: TaskService
   private sessionService: SessionService
   private agentService: AgentService
   private memoryService: MemoryService
   private configService: ConfigService
+  private initialized: Promise<void>
 
   constructor() {
-    const db = createDb()
-    this.taskService = new TaskService(db)
-    this.sessionService = new SessionService(db)
-    this.agentService = new AgentService()
-    this.memoryService = new MemoryService()
+    this.db = createDb()
+    this.taskService = new TaskService(this.db)
+    this.sessionService = new SessionService(this.db)
+    this.agentService = new AgentService(this.db)
+    this.memoryService = new MemoryService(this.db)
     this.configService = new ConfigService()
+    this.initialized = initializeDb(this.db)
+  }
+
+  private async ensureInitialized(): Promise<void> {
+    await this.initialized
   }
 
   /**
@@ -206,19 +214,20 @@ class McpServer {
         inputSchema: {
           type: 'object',
           properties: {
-            category: { type: 'string' },
+            category: { type: 'string', description: 'Filter by category' },
+            status: { type: 'string', enum: ['draft', 'active', 'archived'], description: 'Filter by status' },
           },
         },
       },
       {
         name: 'memory_get',
-        description: 'Get a memory entry by path',
+        description: 'Get a memory entry by ID',
         inputSchema: {
           type: 'object',
           properties: {
-            path: { type: 'string', description: 'Memory entry path' },
+            id: { type: 'number', description: 'Memory entry ID' },
           },
-          required: ['path'],
+          required: ['id'],
         },
       },
       {
@@ -227,10 +236,12 @@ class McpServer {
         inputSchema: {
           type: 'object',
           properties: {
-            path: { type: 'string', description: 'File path (e.g., "decisions/architecture.md")' },
+            category: { type: 'string', description: 'Category (e.g., "decisions", "context")' },
+            title: { type: 'string', description: 'Memory title' },
             content: { type: 'string', description: 'Content to write' },
+            summary: { type: 'string', description: 'Short summary (optional)' },
           },
-          required: ['path', 'content'],
+          required: ['category', 'title', 'content'],
         },
       },
       {
@@ -239,10 +250,24 @@ class McpServer {
         inputSchema: {
           type: 'object',
           properties: {
-            path: { type: 'string', description: 'Memory entry path' },
-            content: { type: 'string', description: 'New content' },
+            id: { type: 'number', description: 'Memory entry ID' },
+            title: { type: 'string', description: 'New title (optional)' },
+            content: { type: 'string', description: 'New content (optional)' },
+            summary: { type: 'string', description: 'New summary (optional)' },
+            category: { type: 'string', description: 'New category (optional)' },
           },
-          required: ['path', 'content'],
+          required: ['id'],
+        },
+      },
+      {
+        name: 'memory_archive',
+        description: 'Archive a memory entry',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            id: { type: 'number', description: 'Memory entry ID' },
+          },
+          required: ['id'],
         },
       },
       {
@@ -272,6 +297,8 @@ class McpServer {
    * Handle tool call
    */
   async callTool(name: string, args: Record<string, unknown>): Promise<unknown> {
+    await this.ensureInitialized()
+
     switch (name) {
       // Task tools
       case 'task_list':
@@ -301,13 +328,28 @@ class McpServer {
 
       // Memory tools
       case 'memory_list':
-        return this.memoryService.list(args as any)
+        return this.memoryService.list({
+          category: args.category as string | undefined,
+          status: args.status as 'draft' | 'active' | 'archived' | undefined,
+        })
       case 'memory_get':
-        return this.memoryService.get(args.path as string)
+        return this.memoryService.get(args.id as number)
       case 'memory_create':
-        return this.memoryService.create(args as any)
+        return this.memoryService.create({
+          category: args.category as string,
+          title: args.title as string,
+          content: args.content as string,
+          summary: args.summary as string | undefined,
+        })
       case 'memory_update':
-        return this.memoryService.update(args.path as string, args as any)
+        return this.memoryService.update(args.id as number, {
+          title: args.title as string | undefined,
+          content: args.content as string | undefined,
+          summary: args.summary as string | undefined,
+          category: args.category as string | undefined,
+        })
+      case 'memory_archive':
+        return this.memoryService.archive(args.id as number)
       case 'memory_preview':
         return args.compact
           ? this.memoryService.previewCompact()

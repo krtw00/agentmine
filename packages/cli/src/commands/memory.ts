@@ -2,11 +2,14 @@ import { Command } from 'commander'
 import chalk from 'chalk'
 import Table from 'cli-table3'
 import {
+  createDb,
+  initializeDb,
   isProjectInitialized,
   MemoryService,
   MemoryNotFoundError,
-  MemoryAlreadyExistsError,
-  type MemoryEntry,
+  type Db,
+  type Memory,
+  type MemoryStatus,
 } from '@agentmine/core'
 
 // ============================================
@@ -22,8 +25,14 @@ function ensureInitialized(): boolean {
   return true
 }
 
-function getMemoryService(): MemoryService {
-  return new MemoryService()
+async function getDb(): Promise<Db> {
+  const db = createDb()
+  await initializeDb(db)
+  return db
+}
+
+function getMemoryService(db: Db): MemoryService {
+  return new MemoryService(db)
 }
 
 interface OutputOptions {
@@ -31,50 +40,54 @@ interface OutputOptions {
   quiet?: boolean
 }
 
-function formatEntry(entry: MemoryEntry, options: OutputOptions): string {
+function formatMemory(memory: Memory, options: OutputOptions): string {
   if (options.json) {
-    return JSON.stringify(entry)
+    return JSON.stringify(memory)
   }
   if (options.quiet) {
-    return entry.path
+    return String(memory.id)
   }
-  return `${entry.path} (${entry.category})`
+  return `#${memory.id} ${memory.title} (${memory.category})`
 }
 
-function formatEntryList(entries: MemoryEntry[], options: OutputOptions): void {
+function formatMemoryList(memories: Memory[], options: OutputOptions): void {
   if (options.json) {
-    console.log(JSON.stringify(entries, null, 2))
+    console.log(JSON.stringify(memories, null, 2))
     return
   }
 
   if (options.quiet) {
-    entries.forEach(e => console.log(e.path))
+    memories.forEach(m => console.log(m.id))
     return
   }
 
-  if (entries.length === 0) {
+  if (memories.length === 0) {
     console.log(chalk.gray('No memory entries found.'))
     console.log(chalk.gray('Add one with:'))
-    console.log(chalk.cyan('  agentmine memory add <path> <content>'))
+    console.log(chalk.cyan('  agentmine memory add <category> <title> -c <content>'))
     return
   }
 
   const table = new Table({
     head: [
-      chalk.white('Path'),
+      chalk.white('ID'),
       chalk.white('Category'),
       chalk.white('Title'),
+      chalk.white('Status'),
       chalk.white('Updated'),
     ],
     style: { head: [], border: [] },
   })
 
-  for (const entry of entries) {
+  for (const memory of memories) {
+    const statusColor = memory.status === 'active' ? chalk.green :
+                        memory.status === 'archived' ? chalk.gray : chalk.yellow
     table.push([
-      chalk.cyan(entry.path),
-      entry.category,
-      entry.title,
-      entry.updatedAt.toLocaleDateString(),
+      chalk.cyan(String(memory.id)),
+      memory.category,
+      memory.title,
+      statusColor(memory.status),
+      memory.updatedAt.toLocaleDateString(),
     ])
   }
 
@@ -93,56 +106,67 @@ memoryCommand
   .command('list')
   .description('List memory entries')
   .option('-c, --category <category>', 'Filter by category')
+  .option('-s, --status <status>', 'Filter by status (draft, active, archived)')
   .option('--json', 'JSON output')
-  .option('--quiet', 'Minimal output (paths only)')
+  .option('--quiet', 'Minimal output (IDs only)')
   .action(async (options) => {
     ensureInitialized()
-    const service = getMemoryService()
+    const db = await getDb()
+    const service = getMemoryService(db)
 
-    const entries = service.list({ category: options.category })
-    formatEntryList(entries, options)
+    const memories = await service.list({
+      category: options.category,
+      status: options.status as MemoryStatus | undefined,
+    })
+    formatMemoryList(memories, options)
   })
 
 // memory show
 memoryCommand
-  .command('show <path>')
+  .command('show <id>')
   .description('Show memory entry content')
   .option('--json', 'JSON output')
-  .action(async (path, options) => {
+  .action(async (id, options) => {
     ensureInitialized()
-    const service = getMemoryService()
+    const db = await getDb()
+    const service = getMemoryService(db)
 
-    const entry = service.get(path)
+    const memory = await service.get(parseInt(id))
 
-    if (!entry) {
-      console.error(chalk.red(`Memory entry "${path}" not found`))
+    if (!memory) {
+      console.error(chalk.red(`Memory entry #${id} not found`))
       process.exit(5)
     }
 
     if (options.json) {
-      console.log(JSON.stringify(entry, null, 2))
+      console.log(JSON.stringify(memory, null, 2))
       return
     }
 
     console.log('')
-    console.log(chalk.cyan(entry.path), chalk.gray(`(${entry.category})`))
-    console.log(chalk.gray('Title:  '), entry.title)
-    console.log(chalk.gray('Updated:'), entry.updatedAt.toISOString())
+    console.log(chalk.cyan(`#${memory.id} ${memory.title}`), chalk.gray(`(${memory.category})`))
+    console.log(chalk.gray('Status: '), memory.status)
+    if (memory.summary) {
+      console.log(chalk.gray('Summary:'), memory.summary)
+    }
+    console.log(chalk.gray('Updated:'), memory.updatedAt.toISOString())
     console.log('')
-    console.log(entry.content)
+    console.log(memory.content)
   })
 
 // memory add
 memoryCommand
-  .command('add <path>')
+  .command('add <category> <title>')
   .description('Add a new memory entry')
   .option('-c, --content <content>', 'Content (or use stdin)')
+  .option('-s, --summary <summary>', 'Short summary')
   .option('-f, --file <file>', 'Read content from file')
   .option('--json', 'JSON output')
   .option('--quiet', 'Minimal output')
-  .action(async (path, options) => {
+  .action(async (category, title, options) => {
     ensureInitialized()
-    const service = getMemoryService()
+    const db = await getDb()
+    const service = getMemoryService(db)
 
     let content = options.content || ''
 
@@ -162,37 +186,37 @@ memoryCommand
       process.exit(2)
     }
 
-    try {
-      const entry = service.create({ path, content })
+    const memory = await service.create({
+      category,
+      title,
+      content,
+      summary: options.summary,
+    })
 
-      if (options.json) {
-        console.log(JSON.stringify(entry))
-      } else if (options.quiet) {
-        console.log(entry.path)
-      } else {
-        console.log(chalk.green('✓ Created memory entry'), chalk.cyan(path))
-      }
-    } catch (error) {
-      if (error instanceof MemoryAlreadyExistsError) {
-        console.error(chalk.red(`Memory entry "${path}" already exists`))
-        console.log(chalk.gray('Use `agentmine memory edit` to update'))
-        process.exit(6)
-      }
-      throw error
+    if (options.json) {
+      console.log(JSON.stringify(memory))
+    } else if (options.quiet) {
+      console.log(memory.id)
+    } else {
+      console.log(chalk.green('✓ Created memory entry'), chalk.cyan(`#${memory.id} ${title}`))
     }
   })
 
 // memory edit
 memoryCommand
-  .command('edit <path>')
+  .command('edit <id>')
   .description('Edit a memory entry')
+  .option('-t, --title <title>', 'New title')
   .option('-c, --content <content>', 'New content')
+  .option('-s, --summary <summary>', 'New summary')
+  .option('--category <category>', 'New category')
   .option('-f, --file <file>', 'Read content from file')
   .option('--json', 'JSON output')
   .option('--quiet', 'Minimal output')
-  .action(async (path, options) => {
+  .action(async (id, options) => {
     ensureInitialized()
-    const service = getMemoryService()
+    const db = await getDb()
+    const service = getMemoryService(db)
 
     let content = options.content
 
@@ -206,27 +230,61 @@ memoryCommand
       content = readFileSync(options.file, 'utf-8')
     }
 
-    if (!content) {
-      // Show file path for manual editing
-      const fullPath = service.getMemoryDir() + '/' + path
-      console.log(chalk.gray('Edit memory entry at:'))
-      console.log(chalk.cyan(fullPath))
-      return
+    // Check if any update field is provided
+    if (!content && !options.title && !options.summary && !options.category) {
+      console.error(chalk.red('At least one field must be provided to update.'))
+      console.log(chalk.gray('Use -t, -c, -s, --category, or -f option.'))
+      process.exit(2)
     }
 
     try {
-      const entry = service.update(path, { content })
+      const memory = await service.update(parseInt(id), {
+        title: options.title,
+        content,
+        summary: options.summary,
+        category: options.category,
+      })
 
       if (options.json) {
-        console.log(JSON.stringify(entry))
+        console.log(JSON.stringify(memory))
       } else if (options.quiet) {
-        console.log(entry.path)
+        console.log(memory.id)
       } else {
-        console.log(chalk.green('✓ Updated memory entry'), chalk.cyan(path))
+        console.log(chalk.green('✓ Updated memory entry'), chalk.cyan(`#${memory.id}`))
       }
     } catch (error) {
       if (error instanceof MemoryNotFoundError) {
-        console.error(chalk.red(`Memory entry "${path}" not found`))
+        console.error(chalk.red(`Memory entry #${id} not found`))
+        process.exit(5)
+      }
+      throw error
+    }
+  })
+
+// memory archive
+memoryCommand
+  .command('archive <id>')
+  .description('Archive a memory entry')
+  .option('--json', 'JSON output')
+  .option('--quiet', 'Minimal output')
+  .action(async (id, options) => {
+    ensureInitialized()
+    const db = await getDb()
+    const service = getMemoryService(db)
+
+    try {
+      const memory = await service.archive(parseInt(id))
+
+      if (options.json) {
+        console.log(JSON.stringify({ archived: true, id: memory.id }))
+      } else if (options.quiet) {
+        console.log(memory.id)
+      } else {
+        console.log(chalk.green('✓ Archived memory entry'), chalk.cyan(`#${memory.id}`))
+      }
+    } catch (error) {
+      if (error instanceof MemoryNotFoundError) {
+        console.error(chalk.red(`Memory entry #${id} not found`))
         process.exit(5)
       }
       throw error
@@ -235,28 +293,29 @@ memoryCommand
 
 // memory remove
 memoryCommand
-  .command('remove <path>')
+  .command('remove <id>')
   .alias('rm')
   .description('Remove a memory entry')
   .option('--json', 'JSON output')
   .option('--quiet', 'Minimal output')
-  .action(async (path, options) => {
+  .action(async (id, options) => {
     ensureInitialized()
-    const service = getMemoryService()
+    const db = await getDb()
+    const service = getMemoryService(db)
 
     try {
-      service.delete(path)
+      await service.delete(parseInt(id))
 
       if (options.json) {
-        console.log(JSON.stringify({ deleted: true, path }))
+        console.log(JSON.stringify({ deleted: true, id: parseInt(id) }))
       } else if (options.quiet) {
-        console.log(path)
+        console.log(id)
       } else {
-        console.log(chalk.green('✓ Removed memory entry'), chalk.cyan(path))
+        console.log(chalk.green('✓ Removed memory entry'), chalk.cyan(`#${id}`))
       }
     } catch (error) {
       if (error instanceof MemoryNotFoundError) {
-        console.error(chalk.red(`Memory entry "${path}" not found`))
+        console.error(chalk.red(`Memory entry #${id} not found`))
         process.exit(5)
       }
       throw error
@@ -267,21 +326,22 @@ memoryCommand
 memoryCommand
   .command('preview')
   .description('Generate preview for AI consumption')
-  .option('--compact', 'Compact format (titles and first lines only)')
+  .option('--compact', 'Compact format (titles and summaries only)')
   .option('--json', 'JSON output')
   .action(async (options) => {
     ensureInitialized()
-    const service = getMemoryService()
+    const db = await getDb()
+    const service = getMemoryService(db)
 
     if (options.compact) {
-      const preview = service.previewCompact()
+      const preview = await service.previewCompact()
       if (options.json) {
         console.log(JSON.stringify({ preview }))
       } else {
         console.log(preview)
       }
     } else {
-      const preview = service.preview()
+      const preview = await service.preview()
       if (options.json) {
         console.log(JSON.stringify({ preview }))
       } else {
@@ -297,9 +357,10 @@ memoryCommand
   .option('--json', 'JSON output')
   .action(async (options) => {
     ensureInitialized()
-    const service = getMemoryService()
+    const db = await getDb()
+    const service = getMemoryService(db)
 
-    const categories = service.getCategories()
+    const categories = await service.getCategories()
 
     if (options.json) {
       console.log(JSON.stringify(categories))

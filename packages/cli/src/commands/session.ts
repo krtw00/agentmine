@@ -3,6 +3,7 @@ import chalk from 'chalk'
 import Table from 'cli-table3'
 import {
   createDb,
+  initializeDb,
   isProjectInitialized,
   SessionService,
   AgentService,
@@ -11,6 +12,7 @@ import {
   SessionAlreadyEndedError,
   TaskNotFoundError,
   AgentNotFoundError,
+  type Db,
   type Session,
   type SessionStatus,
   type DodResult,
@@ -30,13 +32,18 @@ function ensureInitialized(): boolean {
   return true
 }
 
-function getSessionService(): SessionService {
+async function getDb(): Promise<Db> {
   const db = createDb()
+  await initializeDb(db)
+  return db
+}
+
+function getSessionService(db: Db): SessionService {
   return new SessionService(db)
 }
 
-function getAgentService(): AgentService {
-  return new AgentService()
+function getAgentService(db: Db): AgentService {
+  return new AgentService(db)
 }
 
 interface OutputOptions {
@@ -140,11 +147,12 @@ sessionCommand
   .option('--quiet', 'Minimal output (ID only)')
   .action(async (taskId, agentName, options) => {
     ensureInitialized()
-    const sessionService = getSessionService()
-    const agentService = getAgentService()
+    const db = await getDb()
+    const sessionService = getSessionService(db)
+    const agentService = getAgentService(db)
 
     // Validate agent exists
-    const agent = agentService.findByName(agentName)
+    const agent = await agentService.findByName(agentName)
     if (!agent) {
       console.error(chalk.red(`Agent "${agentName}" not found`))
       process.exit(5)
@@ -190,7 +198,8 @@ sessionCommand
   .option('--quiet', 'Minimal output')
   .action(async (sessionId, options) => {
     ensureInitialized()
-    const service = getSessionService()
+    const db = await getDb()
+    const service = getSessionService(db)
 
     try {
       const { session, durationMs } = await service.end(parseInt(sessionId), {
@@ -234,7 +243,8 @@ sessionCommand
   .option('--quiet', 'Minimal output (IDs only)')
   .action(async (options) => {
     ensureInitialized()
-    const service = getSessionService()
+    const db = await getDb()
+    const service = getSessionService(db)
 
     const sessions = await service.findAll({
       status: options.running ? 'running' : options.status as SessionStatus | undefined,
@@ -252,7 +262,8 @@ sessionCommand
   .option('--json', 'JSON output')
   .action(async (sessionId, options) => {
     ensureInitialized()
-    const service = getSessionService()
+    const db = await getDb()
+    const service = getSessionService(db)
 
     const result = await service.findByIdWithTask(parseInt(sessionId))
 
@@ -316,7 +327,8 @@ sessionCommand
   .option('--quiet', 'Minimal output')
   .action(async (sessionId, options) => {
     ensureInitialized()
-    const service = getSessionService()
+    const db = await getDb()
+    const service = getSessionService(db)
 
     try {
       await service.cleanup(parseInt(sessionId))
@@ -345,7 +357,8 @@ sessionCommand
   .option('--json', 'JSON output')
   .action(async (options) => {
     ensureInitialized()
-    const service = getSessionService()
+    const db = await getDb()
+    const service = getSessionService(db)
 
     const counts = await service.countByStatus()
 
@@ -377,7 +390,8 @@ sessionCommand
   .option('--quiet', 'Minimal output')
   .action(async (sessionId, options) => {
     ensureInitialized()
-    const service = getSessionService()
+    const db = await getDb()
+    const service = getSessionService(db)
 
     // Validate review status
     const validStatuses: ReviewStatus[] = ['approved', 'rejected', 'needs_work']
@@ -429,7 +443,8 @@ sessionCommand
   .option('--quiet', 'Minimal output (IDs only)')
   .action(async (options) => {
     ensureInitialized()
-    const service = getSessionService()
+    const db = await getDb()
+    const service = getSessionService(db)
 
     const sessions = await service.findPendingReview()
 
