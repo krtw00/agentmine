@@ -97,7 +97,7 @@ agentmine worker stop 1      # 停止
 agentmine worker done 1      # セッション終了・クリーンアップ
 ```
 
-**詳細フロー**: @./07-runtime/worker-lifecycle.md を参照
+**詳細フロー**: @../07-runtime/worker-lifecycle.md を参照
 
 ## Package Structure
 
@@ -396,4 +396,4 @@ promptContent: |
   プロジェクトのガイドラインに従って作業すること。
 ```
 
-詳細は [Agent System](./features/agent-system.md) を参照。
+詳細は @05-features/agent-system.md を参照。
