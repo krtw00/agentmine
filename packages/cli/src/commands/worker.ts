@@ -1,6 +1,8 @@
 import { Command } from 'commander'
 import chalk from 'chalk'
 import { spawn } from 'node:child_process'
+import { existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import {
   createDb,
   initializeDb,
@@ -288,7 +290,7 @@ workerCommand
     }
 
     // Build prompt
-    const prompt = buildPromptFromTask({
+    const prompt = await buildPromptFromTask({
       task,
       agent,
       agentService,
@@ -596,7 +598,7 @@ workerCommand
       }
     }
 
-    const prompt = buildPromptFromTask({
+    const prompt = await buildPromptFromTask({
       task,
       agent,
       agentService: agent ? agentService : undefined,
@@ -978,7 +980,7 @@ interface BuildPromptOptions {
   memoryService?: MemoryService
 }
 
-function buildPromptFromTask(options: BuildPromptOptions): string {
+async function buildPromptFromTask(options: BuildPromptOptions): Promise<string> {
   const { task, agent, agentService, memoryService } = options
   const parts: string[] = []
 
@@ -1004,12 +1006,21 @@ function buildPromptFromTask(options: BuildPromptOptions): string {
     parts.push('')
   }
 
-  // Agent instructions from promptFile
-  if (agent && agentService) {
-    const promptContent = agentService.getPromptFileContent(agent)
-    if (promptContent) {
+  // Agent instructions from promptContent or promptFile
+  if (agent) {
+    let content = agent.promptContent
+
+    // Fallback to promptFile if no promptContent in DB
+    if (!content && agent.config?.promptFile) {
+      const promptPath = join('.agentmine', agent.config.promptFile)
+      if (existsSync(promptPath)) {
+        content = readFileSync(promptPath, 'utf-8')
+      }
+    }
+
+    if (content) {
       parts.push('## Agent Instructions')
-      parts.push(promptContent)
+      parts.push(content)
       parts.push('')
     }
   }
@@ -1025,20 +1036,31 @@ function buildPromptFromTask(options: BuildPromptOptions): string {
     parts.push('')
   }
 
-  // Memory Bank context (reference-based: file paths only)
+  // Memory Bank context (DB-based)
   if (memoryService) {
     try {
-      const memoryFiles = memoryService.listFiles()
-      if (memoryFiles.length > 0) {
+      const memories = await memoryService.list({ status: 'active' })
+      if (memories.length > 0) {
         parts.push('## Project Context (Memory Bank)')
-        parts.push('The following project decision files are available in `.agentmine/memory/`:')
         parts.push('')
-        for (const file of memoryFiles) {
-          parts.push(`- \`${file.path}\` - ${file.title} (${file.category})`)
+
+        // Group by category
+        const byCategory = new Map<string, typeof memories>()
+        for (const memory of memories) {
+          if (!byCategory.has(memory.category)) {
+            byCategory.set(memory.category, [])
+          }
+          byCategory.get(memory.category)!.push(memory)
         }
-        parts.push('')
-        parts.push('Read these files for detailed project decisions and context.')
-        parts.push('')
+
+        for (const [category, categoryMemories] of byCategory) {
+          parts.push(`### ${category}`)
+          for (const memory of categoryMemories) {
+            const summary = memory.summary || memory.content.split('\n')[0]?.trim() || ''
+            parts.push(`- **${memory.title}**: ${summary}`)
+          }
+          parts.push('')
+        }
       }
     } catch {
       // Ignore memory errors
