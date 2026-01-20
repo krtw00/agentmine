@@ -254,7 +254,9 @@ export async function initializeDb(db: Db): Promise<void> {
       await db.run(sql`ALTER TABLE sessions ADD COLUMN session_group_id TEXT`)
     }
     if (!columns.includes('idempotency_key')) {
-      await db.run(sql`ALTER TABLE sessions ADD COLUMN idempotency_key TEXT UNIQUE`)
+      await db.run(sql`ALTER TABLE sessions ADD COLUMN idempotency_key TEXT`)
+      // Create unique index separately (SQLite doesn't support UNIQUE in ALTER TABLE)
+      await db.run(sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_idempotency_key ON sessions(idempotency_key)`)
     }
   } catch {
     // Ignore errors if columns already exist
