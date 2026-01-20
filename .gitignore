@@ -48,3 +48,4 @@ coverage/
 
 # agentmine project data
 .agentmine/
+docs/.devhive/
