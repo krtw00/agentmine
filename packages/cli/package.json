@@ -1,7 +1,7 @@
 {
   "name": "@agentmine/cli",
   "version": "0.1.0",
-  "description": "CLI for agentmine - AI Project Manager",
+  "description": "CLI for agentmine - Orchestrator AI interface",
   "type": "module",
   "bin": {
     "agentmine": "./dist/index.js"

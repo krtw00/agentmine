@@ -2,7 +2,7 @@
   "name": "agentmine",
   "version": "0.1.0",
   "private": true,
-  "description": "AI Project Manager - Redmine for AI agents with CLI and Web UI",
+  "description": "Safe Parallel AI Development Environment",
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",

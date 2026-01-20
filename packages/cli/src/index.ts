@@ -13,7 +13,7 @@ const program = new Command()
 
 program
   .name('agentmine')
-  .description('AI Project Manager - Redmine for AI agents')
+  .description('Safe Parallel AI Development Environment')
   .version(VERSION)
 
 // Add commands

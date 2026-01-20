@@ -1,15 +1,28 @@
 # agentmine
 
-AIエージェントのためのプロジェクト管理ツール（Redmine for AI Agents）
+**Safe Parallel AI Development Environment** - 複数AIを同時に、安全に、管理可能に
 
 ## プロジェクト概要
 
-agentmineは**AIが使う**プロジェクト管理ツール。Blackboard設計でデータ層のみ提供し、判断・制御はしない。
+agentmineは**並列AI開発の実行環境**。Redmine的運用でチーム協業をサポート。
+
+### Core Value
+
+1. **並列AI管理** - 複数AIを同時に動かす（worktree隔離）
+2. **スコープ制御** - 物理的なアクセス制限で安全に自動承認
+3. **人間とAIの協業** - 人間はWeb UI、AIはCLI/MCP
 
 ```
-Human → Orchestrator(Claude Code等) → Worker(サブエージェント) → Git
-                ↓
-          agentmine (データ層)
+┌─────────────────────────────────────────────────────────────────┐
+│  Redmine的運用                                                   │
+│                                                                 │
+│  チーム全員 ───→ 共有PostgreSQL ───→ 単一の真実源               │
+│                                                                 │
+│  Human ──────┬─────→ Web UI ──┐                                 │
+│              │                 │                                 │
+│  Orchestrator ───→ CLI/MCP ───┼──→ DB (マスター) ──→ Worker     │
+│                               │                                  │
+└───────────────────────────────┴──────────────────────────────────┘
 ```
 
 ## 技術スタック
@@ -18,7 +31,7 @@ Human → Orchestrator(Claude Code等) → Worker(サブエージェント) → 
 - **言語**: TypeScript (strict mode)
 - **パッケージ構成**: @agentmine/cli, @agentmine/web, @agentmine/core
 - **CLI**: Commander.js
-- **DB**: SQLite (ローカル) / PostgreSQL (本番), Drizzle ORM
+- **DB**: PostgreSQL (メイン) / SQLite (サブ), Drizzle ORM
 - **Web UI**: Next.js 14+ (App Router) + shadcn/ui + Tailwind CSS
 - **テスト**: Vitest
 
@@ -50,11 +63,31 @@ pnpm lint         # リント
 
 ## 重要な設計原則
 
-1. **Blackboard設計**: agentmineはデータ永続化のみ、判断・制御しない
-2. **Observable Facts**: ステータスはexit code, merge状態等の客観事実で判定
-3. **Worker隔離**: Workerはagentmineにアクセスしない、隔離されたworktreeで作業
-4. **スコープ制御**: sparse-checkoutで物理的にファイルアクセスを制限
+1. **DBマスター**: すべてのデータ（タスク、Agent、Memory、設定）はDBで管理
+2. **Redmine的運用**: チーム全員が同じDBを参照、リアルタイム協業
+3. **Worker隔離**: Workerは隔離されたworktreeで作業、DB直接アクセスなし
+4. **スコープ制御**: sparse-checkout + chmodで物理的にファイルアクセスを制限
 5. **非対話Worker**: Workerは自動承認モードで動作（--dangerously-skip-permissions等）
+6. **Observable Facts**: ステータスはexit code, merge状態等の客観事実で判定
+
+## データ管理（DBマスター）
+
+| データ | 保存先 | Worker用出力 |
+|--------|--------|--------------|
+| タスク | DB (tasks) | - |
+| セッション | DB (sessions) | - |
+| Agent定義 | DB (agents) | .agentmine-worker/agent.yaml |
+| Memory Bank | DB (memories) | .agentmine-worker/memory/ |
+| 設定 | DB (settings) | - |
+| 監査ログ | DB (audit_logs) | - |
+
+```
+Worker起動時:
+DB → worktree/.agentmine-worker/ へファイル出力
+     ├── agent.yaml
+     ├── prompt.md
+     └── memory/
+```
 
 ## Worker実行フロー
 
@@ -75,9 +108,10 @@ agentmine worker done 1      # 完了・クリーンアップ
 
 **worker runの動作:**
 1. Git worktree作成（`.agentmine/worktrees/task-<id>/`）
-2. スコープ適用（exclude: sparse-checkout, write: chmod）
-3. セッション開始
-4. Worker AI起動（--detachでバックグラウンド）
+2. DBからAgent定義・Memory取得 → worktreeへファイル出力
+3. スコープ適用（exclude: sparse-checkout, write: chmod）
+4. セッション開始
+5. Worker AI起動（--detachでバックグラウンド）
 
 ## 詳細ドキュメント
 

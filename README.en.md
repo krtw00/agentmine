@@ -1,8 +1,8 @@
 # agentmine
 
-**The Project Management Platform Built for AI Agents**
+**Safe Parallel AI Development Environment**
 
-> A project management platform where AI agents and humans truly collaborate
+> Run multiple AIs simultaneously, safely, and manageably
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue.svg)](https://www.typescriptlang.org/)
@@ -13,193 +13,101 @@ English | [日本語](./README.md)
 
 ## Why agentmine?
 
-We're in an era where AI coding agents (Claude Code, Codex CLI, Gemini CLI, etc.) handle implementation.
-However, existing tools have significant limitations:
+**Trying to manage parallel AI development with GitHub Issues doesn't work.**
 
-| Tool | Problem |
-|------|---------|
-| **GitHub Issues / Jira** | Designed for humans. Low information density for AI, verbose operations |
-| **APM** | Focused on context management. Lacks full-fledged project management |
-| **TSK** | Focused on sandbox execution. Minimal task management |
-| **TaskMaster AI** | Focused on task decomposition. Can't manage entire projects |
+Issues are for "recording", not for "execution".
+Running multiple AIs simultaneously requires **isolation, scope control, and safe automatic execution**.
 
-**agentmine** is an integrated platform that takes the best from all of these.
+agentmine is the **execution environment for parallel AI development** that solves these challenges.
 
 ---
 
-## Core Features
-
-### 1. Dual Interface - Designed for Both AI and Humans
+## Core Value
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        agentmine                             │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│   ┌──────────────────┐       ┌──────────────────┐          │
-│   │       CLI        │       │      Web UI      │          │
-│   │                  │       │                  │          │
-│   │  AI Agents       │       │  Humans          │          │
-│   │  - Structured    │       │  - Kanban board  │          │
-│   │  - Fast ops      │       │  - Dashboard     │          │
-│   │  - Pipeable      │       │  - Drag & drop   │          │
-│   └────────┬─────────┘       └────────┬─────────┘          │
-│            └──────────┬───────────────┘                     │
-│                       ▼                                      │
-│              ┌─────────────────┐                            │
-│              │    Shared DB    │                            │
-│              │  SQLite / PG    │                            │
-│              └─────────────────┘                            │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                    agentmine Core Value                             │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  1. Parallel AI Management                                          │
+│     • Run multiple AIs simultaneously (worktree isolation)          │
+│     • Assign based on AI strengths                                  │
+│     • Switch AIs when context limits are reached                    │
+│                                                                     │
+│  2. Scope Control                                                   │
+│     • Physical access restrictions (sparse-checkout + chmod)        │
+│     • Safe automatic execution without Yes/No prompts               │
+│     • Use --dangerously-skip-permissions with confidence            │
+│                                                                     │
+│  3. Human-AI Collaboration                                          │
+│     • Works via Orchestrator AI or direct human control             │
+│     • Web UI for overall visibility and monitoring                  │
+│     • Task definition by humans, execution by AI, approval by humans│
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
-### 2. Memory Bank - Never Lose Context (Inspired by APM)
+---
 
-Project context persists even when agent sessions end.
+## Issue vs agentmine
 
-```yaml
-# .agentmine/memory/project-context.md auto-generated & updated
-Session:
-  id: 42
-  agent: coder
-  task_id: 7
-  summary: "Implemented JWT auth with refresh token support"
-  decisions:
-    - "Chose jose library (lightweight)"
-    - "Set token expiry to 15 minutes"
-  next_steps:
-    - "Implement logout functionality"
-    - "Add token refresh tests"
+| Aspect | GitHub Issues | agentmine |
+|--------|---------------|-----------|
+| **Essence** | Recording & tracking | Execution environment |
+| **Parallel execution** | ✗ Cannot manage | ✓ worktree isolation |
+| **Scope control** | ✗ No concept | ✓ Physical restrictions |
+| **Auto-approval** | ✗ Not relevant | ✓ Safely possible |
+| **AI assignment** | ✗ Manual comments | ✓ Agent definitions |
+| **State** | Open/Closed | Execution state (running/waiting/done) |
+
+**Manage with Issues, execute with agentmine.** Complementary, not competing.
+
+---
+
+## How to Use
+
+### For Humans: Web UI
+
 ```
-
-In a new session:
-```bash
-agentmine context load  # Restore previous context
-```
-
-### 3. Parallel Execution - Run Tasks Concurrently (Inspired by TSK)
-
-```bash
-# Run multiple tasks in parallel
-agentmine task run --parallel 3
-
-# Compare same task with different agents
-agentmine task run 5 --agent coder,reviewer --compare
+http://localhost:3333
 ```
 
 ```
-┌─────────────────────────────────────────┐
-│           Parallel Execution            │
-├─────────────────────────────────────────┤
-│  Task #3        Task #4        Task #5  │
-│  ┌─────────┐   ┌─────────┐   ┌─────────┐│
-│  │ coder   │   │ coder   │   │ coder   ││
-│  │ branch-3│   │ branch-4│   │ branch-5││
-│  └────┬────┘   └────┬────┘   └────┬────┘│
-│       │             │             │      │
-│       ▼             ▼             ▼      │
-│    PR #12        PR #13        PR #14   │
-└─────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                                                                     │
+│  Create Task → Select Agent → Start Worker → Monitor → Confirm Done │
+│                                                                     │
+│  Everything in the browser. No need to learn CLI.                   │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
-### 4. Task Decomposition - Auto-generate from PRD (Inspired by TaskMaster AI)
+### For Orchestrator AI: CLI / MCP
+
+Orchestrator AI (Claude Code, etc.) automates via CLI/MCP:
 
 ```bash
-# Generate tasks from PRD
-agentmine task parse-prd ./docs/prd.md
-
-# Expand complex tasks into subtasks
-agentmine task expand 3 --depth 2
-
-# Analyze complexity
-agentmine task analyze 3
-# → Complexity: 7/10
-# → Estimated subtasks: 4
-# → Suggested approach: "Separate auth and API implementation"
+# Orchestrator executes
+agentmine task add "Auth feature" -t feature
+agentmine worker run 1 --exec --detach
+agentmine worker run 2 --exec --detach
+agentmine worker wait 1 2
 ```
 
-### 5. Agent Definitions - Role-based Agent Configuration
-
-```yaml
-# .agentmine/config.yaml
-agents:
-  planner:
-    description: "Design and planning"
-    model: claude-opus
-    tools: [Read, WebSearch, Grep]
-    skills: [analyze, design, estimate]
-
-  coder:
-    description: "Implementation"
-    model: claude-sonnet
-    tools: [Read, Write, Edit, Bash, Grep, Glob]
-    skills: [implement, test, debug]
-
-  reviewer:
-    description: "Code review"
-    model: claude-haiku
-    tools: [Read, Grep]
-    skills: [review, security-check]
-```
-
-### 6. Skill System - Reusable Prompts
-
-```yaml
-skills:
-  # Built-in skills
-  commit:
-    source: builtin
-
-  # Custom skills
-  api-design:
-    source: local
-    path: .agentmine/skills/api-design.md
-
-  # Community skills
-  security-audit:
-    source: remote
-    url: https://skills.agentmine.dev/security-audit.md
-```
-
-```bash
-agentmine skill run security-audit --task 5
-```
-
-### 7. MCP Integration - Seamless Editor Integration
+Or direct operation via MCP:
 
 ```json
-// Cursor / Windsurf / Claude Desktop
 {
   "mcpServers": {
     "agentmine": {
-      "command": "agentmine",
-      "args": ["mcp", "serve"]
+      "command": "npx",
+      "args": ["agentmine", "mcp", "serve"]
     }
   }
 }
 ```
 
-Directly from your editor:
-- Fetch task list
-- Update status
-- Load context
-
----
-
-## Comparison
-
-| Feature | agentmine | APM | TSK | TaskMaster AI | GitHub Issues |
-|---------|-----------|-----|-----|---------------|---------------|
-| Project Management | ✅ Full | ❌ | ❌ | △ | ✅ |
-| CLI (AI-friendly) | ✅ | ❌ | ✅ | ✅ | △ gh CLI |
-| Web UI | ✅ | ❌ | ❌ | △ VS Code | ✅ |
-| Memory Bank | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Parallel Execution | ✅ | ❌ | ✅ | ❌ | ❌ |
-| Task Decomposition | ✅ | ❌ | ❌ | ✅ | ❌ |
-| Agent Definitions | ✅ | △ | ❌ | ❌ | ❌ |
-| Skill System | ✅ | ❌ | ❌ | ❌ | ❌ |
-| MCP Support | ✅ | ❌ | ❌ | ✅ | ❌ |
-| AI/Human Distinction | ✅ | △ | ❌ | ❌ | ❌ |
+**Humans use Web UI, AI uses CLI/MCP. Optimal interface for each.**
 
 ---
 
@@ -212,151 +120,239 @@ npm install -g agentmine
 # Initialize project
 agentmine init
 
-# Create task
-agentmine task add "Implement user authentication" -p high -t feature
+# Start Web UI
+agentmine ui
+```
 
-# Assign to agent
-agentmine task assign 1 coder
+Open `http://localhost:3333` in your browser for task creation, Worker startup, and monitoring.
 
-# Start work (auto-creates branch)
-agentmine task start 1
+### Using via Orchestrator AI
 
-# Complete (auto-creates PR)
-agentmine task done 1
+Let an Orchestrator like Claude Code use agentmine:
+
+```bash
+# After MCP configuration, instruct the Orchestrator
+"Manage tasks with agentmine and run Workers in parallel"
 ```
 
 ---
 
-## CLI Reference
+## Features
 
-### Task Management
-
-```bash
-# CRUD
-agentmine task add "title" [-p priority] [-t type]
-agentmine task list [--status open|in_progress|review|done]
-agentmine task show <id>
-agentmine task update <id> [--title] [--priority] [--status]
-agentmine task delete <id>
-
-# Workflow
-agentmine task assign <id> <agent|human> [--ai|--human]
-agentmine task start <id>              # Create branch, change status
-agentmine task done <id>               # Create PR, change status
-
-# Advanced
-agentmine task parse-prd <file>        # Generate tasks from PRD
-agentmine task expand <id>             # Expand into subtasks
-agentmine task analyze <id>            # Analyze complexity
-agentmine task run --parallel <n>      # Parallel execution
-```
-
-### Agent Management
+### 1. Web UI - Dashboard for Humans
 
 ```bash
-agentmine agent list
-agentmine agent show <name>
-agentmine agent run <name> "prompt" [--task <id>]
+agentmine ui  # http://localhost:3333
 ```
 
-### Context / Memory
+**Humans complete everything in Web UI:**
+- Create/edit/delete tasks
+- Select/assign agents
+- Start/stop Workers
+- Monitor progress/confirm completion
+- Preview diffs
 
-```bash
-agentmine context show                 # Show current context
-agentmine context load [--session <id>] # Restore context
-agentmine context save                 # Manual save
+No need to learn CLI. Manage parallel AI development from your browser.
+
+### 2. Scope Control
+
+```yaml
+# Agent definition in DB (editable via Web UI)
+name: coder
+client: claude-code
+model: sonnet
+scope:
+  read: ["**/*"]                    # Can read all files
+  write: ["src/**", "tests/**"]     # Can only edit these
+  exclude: ["**/*.env", "**/secrets/**"]  # Physically removed
 ```
 
-### Skills
+- **exclude**: Physically remove files via sparse-checkout
+- **write**: Make non-target files read-only via chmod
+- **Result**: Physically limit what AI can touch → **Safe auto-approval**
 
-```bash
-agentmine skill list
-agentmine skill run <name> [--task <id>]
-agentmine skill add <name> --path <file>
+**Freedom from Yes/No prompts.** Anything within scope is safe.
+
+### 3. Parallel Execution
+
+```
+┌────────────┐  ┌────────────┐  ┌────────────┐
+│  Worker 1  │  │  Worker 2  │  │  Worker 3  │
+│  (Claude)  │  │  (Codex)   │  │  (Gemini)  │
+│ worktree-1 │  │ worktree-2 │  │ worktree-3 │
+└─────┬──────┘  └─────┬──────┘  └─────┬──────┘
+      │               │               │
+      └───────────────┴───────────────┘
+                      │
+                    Git
 ```
 
-### Web UI
+Each Worker operates in an independent worktree. No interference with each other.
 
-```bash
-agentmine ui                           # http://localhost:3333
-agentmine ui --port 8080
+### 4. Multiple AI Clients
+
+| Client | Auto-approval Mode | Support |
+|--------|-------------------|---------|
+| Claude Code | `--dangerously-skip-permissions` | ✓ |
+| Codex | `--full-auto` | ✓ |
+| Gemini CLI | `-y` | ✓ |
+| Aider | `--yes` | ✓ |
+| OpenCode | `--auto-approve` | ✓ |
+
+Use different AIs based on their strengths. Switch to another AI when context limits are reached.
+
+### 5. Agent Definitions - Role-based Configuration (DB Managed)
+
+**Agent definitions are managed in DB.** Edit via Web UI, share in real-time across team.
+
+```yaml
+# Agent definition in DB (edit via Web UI/CLI)
+name: planner
+description: "Planning role"
+client: claude-code
+model: opus            # High-performance model
+scope:
+  read: ["**/*"]
+  write: []            # Read-only
 ```
+
+```yaml
+name: coder
+description: "Implementation role"
+client: claude-code
+model: sonnet
+scope:
+  write: ["src/**", "tests/**"]
+```
+
+Change history is automatically saved. Rollback to previous versions is supported.
+
+### 6. MCP / CLI - For Orchestrator AI
+
+```json
+{
+  "mcpServers": {
+    "agentmine": {
+      "command": "npx",
+      "args": ["agentmine", "mcp", "serve"]
+    }
+  }
+}
+```
+
+Orchestrator AI (Claude Code, etc.) automatically operates agentmine.
+CLI is designed for AI/scripts, not humans.
 
 ---
 
 ## Architecture
 
 ```
-agentmine/
-├── packages/
-│   ├── cli/              # CLI application
-│   │   └── src/
-│   │       ├── commands/ # task, agent, skill, context, ui
-│   │       └── mcp/      # MCP server
-│   ├── web/              # Next.js Web UI
-│   │   └── src/
-│   │       ├── app/      # App Router
-│   │       └── components/
-│   └── core/             # Shared logic
-│       └── src/
-│           ├── db/       # Drizzle ORM
-│           ├── models/   # Task, Agent, Session, Skill
-│           └── services/ # Business logic
-├── pnpm-workspace.yaml
-├── turbo.json
-└── package.json
+┌─────────────────────────────────────────────────────────────────────┐
+│                                                                     │
+│  Human ──────┬─────────────────────────────────────┐               │
+│              │                                     │               │
+│              ▼                                     ▼               │
+│  ┌───────────────────┐                  ┌──────────────────┐      │
+│  │ Orchestrator AI   │                  │  CLI / Web UI    │      │
+│  │ (Claude Code)     │                  │  (Direct control)│      │
+│  └─────────┬─────────┘                  └────────┬─────────┘      │
+│            │                                     │                 │
+│            └──────────────┬──────────────────────┘                 │
+│                           ▼                                        │
+│            ┌──────────────────────────────┐                       │
+│            │          agentmine           │                       │
+│            │                              │                       │
+│            │  • Task Management           │                       │
+│            │  • Worktree + Scope Control  │                       │
+│            │  • Worker Lifecycle          │                       │
+│            │  • Session Recording         │                       │
+│            └──────────────┬───────────────┘                       │
+│                           │                                        │
+│          ┌────────────────┼────────────────┐                      │
+│          ▼                ▼                ▼                      │
+│   ┌────────────┐  ┌────────────┐  ┌────────────┐                 │
+│   │  Worker 1  │  │  Worker 2  │  │  Worker 3  │                 │
+│   │  (Claude)  │  │  (Codex)   │  │  (Gemini)  │                 │
+│   │ worktree-1 │  │ worktree-2 │  │ worktree-3 │                 │
+│   └─────┬──────┘  └─────┬──────┘  └─────┬──────┘                 │
+│         │               │               │                         │
+│         └───────────────┴───────────────┘                         │
+│                         │                                          │
+│                         ▼                                          │
+│                       Git                                          │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
 ```
-
-### Tech Stack
-
-| Layer | Technology | Reason |
-|-------|------------|--------|
-| CLI | TypeScript + Commander | Type sharing with Web UI, rich ecosystem |
-| Web UI | Next.js 15 + shadcn/ui | App Router, Server Components |
-| Database | SQLite / PostgreSQL | Local ↔ Team flexibility |
-| ORM | Drizzle | Type-safe, lightweight, multi-DB |
-| Monorepo | pnpm + Turborepo | Fast builds, caching |
 
 ---
 
-## Roadmap
+## CLI Reference (for Orchestrator AI / Scripts)
 
-### Phase 1: Foundation (Current)
-- [x] Monorepo structure setup
-- [ ] Basic CLI commands (task CRUD)
-- [ ] SQLite integration
-- [ ] Basic task workflow
+> **Note:** CLI is designed for Orchestrator AI/scripts, not humans.
+> Humans should use the Web UI.
 
-### Phase 2: Memory & Context
-- [ ] Memory Bank implementation
-- [ ] Session recording & restoration
-- [ ] Auto context summarization
+### Task Management
 
-### Phase 3: Agent Integration
-- [ ] Agent definition YAML
-- [ ] Claude Code / Codex integration
-- [ ] Skill system
+```bash
+agentmine task add <title> [options]     # Create task
+agentmine task list [options]            # List tasks
+agentmine task show <id>                 # Show task details
+agentmine task update <id> [options]     # Update task
+agentmine task delete <id>               # Delete task
+```
 
-### Phase 4: Advanced Features
-- [ ] Parallel execution engine
-- [ ] PRD → Task decomposition
-- [ ] Complexity analysis (AI-powered)
+### Worker Management
 
-### Phase 5: Web UI
-- [ ] Dashboard
-- [ ] Kanban board
-- [ ] Real-time updates (WebSocket)
+```bash
+agentmine worker run <task-id> --exec           # Start Worker
+agentmine worker run <task-id> --exec --detach  # Start in background
+agentmine worker status [task-id]               # Check status
+agentmine worker wait <task-ids...>             # Wait for completion
+agentmine worker stop <task-ids...>             # Stop
+agentmine worker done <task-id>                 # Cleanup
+```
 
-### Phase 6: MCP & Ecosystem
-- [ ] MCP server implementation
-- [ ] Cursor / Windsurf integration
-- [ ] Skill marketplace
+### Other
 
-### Phase 7: Team & Scale
-- [ ] PostgreSQL support
-- [ ] Multi-user
-- [ ] GitHub Issues sync
-- [ ] Slack/Discord notifications
+```bash
+agentmine init          # Initialize project
+agentmine ui            # Start Web UI
+agentmine mcp serve     # Start MCP server
+```
+
+---
+
+## Technology Stack
+
+| Category | Technology |
+|----------|------------|
+| Package Manager | pnpm |
+| Monorepo | Turborepo |
+| Language | TypeScript |
+| CLI | Commander.js |
+| Web UI | Next.js + React + shadcn/ui + Tailwind |
+| ORM | Drizzle ORM |
+| DB | **PostgreSQL (main)** / SQLite (sub) |
+| Test | Vitest |
+
+### Data Management (DB Master)
+
+All data (tasks, Agent definitions, Memory Bank, settings) is managed in DB. Redmine-style team collaboration.
+
+```
+All team members ───→ Shared PostgreSQL ───→ Single source of truth
+```
+
+| Data | Storage | Notes |
+|------|---------|-------|
+| Tasks | DB | tasks table |
+| Agent definitions | DB | agents table + change history |
+| Memory Bank | DB | memories table + change history |
+| Settings | DB | settings table |
+| Audit logs | DB | audit_logs table |
+
+Files are exported from DB to worktree when Worker starts. `.agentmine/` is in `.gitignore`.
 
 ---
 
@@ -364,7 +360,7 @@ agentmine/
 
 ```bash
 # Clone
-git clone https://github.com/yourname/agentmine.git
+git clone https://github.com/krtw00/agentmine.git
 cd agentmine
 
 # Install dependencies
@@ -380,35 +376,27 @@ pnpm build
 
 # Test
 pnpm test
-
-# CLI global install (dev)
-cd packages/cli && pnpm link --global
 ```
 
 ---
 
-## Inspiration & Credits
+## Documentation
 
-agentmine draws inspiration from these excellent projects:
-
-- [Agentic Project Management (APM)](https://github.com/sdi2200262/agentic-project-management) - Memory Bank, Handover protocols
-- [TSK](https://github.com/dtormoen/tsk) - Parallel execution, sandbox architecture
-- [TaskMaster AI](https://github.com/eyaltoledano/claude-task-master) - PRD decomposition, MCP integration
-- [Claude Squad](https://github.com/smtg-ai/claude-squad) - Multi-agent management
-- [Redmine](https://www.redmine.org/) - Full-featured project management UX
+- [Architecture](./docs/architecture.md) - System Architecture
+- [Data Model](./docs/data-model.md) - Data Model
+- [CLI Design](./docs/cli-design.md) - CLI Command Design
+- [Agent System](./docs/features/agent-system.md) - Agent Definitions
+- [Parallel Execution](./docs/features/parallel-execution.md) - Parallel Execution
+- [Worktree & Scope](./docs/features/worktree-scope.md) - Scope Control
 
 ---
 
-## Contributing
-
-Contributions are welcome! Please read our [Contributing Guide](./CONTRIBUTING.md) first.
-
 ## License
 
-MIT License - see [LICENSE](./LICENSE) for details.
+[MIT License](./LICENSE)
 
 ---
 
 <p align="center">
-  <b>agentmine</b> - Where AI agents and humans collaborate seamlessly
+  <b>agentmine</b> - Safe Parallel AI Development Environment
 </p>

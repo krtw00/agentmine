@@ -2,7 +2,7 @@
 
 ## 概要
 
-agentmineのWeb UIは、人間のOrchestratorがAIエージェント（Worker）を管理・監視するためのインターフェース。
+agentmineのWeb UIは、人間がAIエージェント（Worker）を管理・監視するためのインターフェース。
 
 ### 設計原則
 
@@ -461,68 +461,588 @@ agentmineのWeb UIは、人間のOrchestratorがAIエージェント（Worker）
 └───────────────────────────────────────────────────────────┘
 ```
 
-## エディタ機能
+## エディタ・Linterシステム（VSCode級）
 
-### 自動Lint & フォーマッタ
+### 設計方針
 
-YAML/Markdown編集時に自動で検証・整形を行う。
+AI向けの設定・プロンプトを編集する以上、**VSCode同等の品質**を目指す。
 
-| 対象 | Lint | フォーマット | タイミング |
-|------|------|--------------|------------|
-| **YAML** | 構文エラー、スキーマ検証 | インデント、引用符統一 | 保存時 / 手動 |
-| **Markdown** | - | 見出し、リスト整形 | 保存時 / 手動 |
+```
+┌─────────────────────────────────────────────────────────────┐
+│  VSCode級エディタの要件                                     │
+│                                                             │
+│  ✓ Monaco Editor（VSCodeと同じエンジン）                    │
+│  ✓ JSON Schemaによるリアルタイム検証                        │
+│  ✓ IntelliSense（補完・ホバー情報）                        │
+│  ✓ 入力中のエラーハイライト                                 │
+│  ✓ Prettier統合の自動フォーマット                           │
+│  ✓ プロンプト専用のカスタムLint                             │
+└─────────────────────────────────────────────────────────────┘
+```
 
-#### YAML編集
+### 編集対象と検証要件
+
+| 対象 | 形式 | スキーマ検証 | カスタムLint | フォーマット |
+|------|------|:------------:|:------------:|:------------:|
+| Agent定義 | YAML | ✓ JSON Schema | - | ✓ Prettier |
+| Config | YAML | ✓ JSON Schema | - | ✓ Prettier |
+| Prompts | Markdown | - | ✓ テンプレート変数 | ✓ Prettier |
+| Memory Bank | Markdown | - | ✓ 構造検証 | ✓ Prettier |
+
+---
+
+### 1. Monaco Editorセットアップ
+
+#### 基本構成
+
+```typescript
+// packages/web/src/components/editor/monaco-editor.tsx
+import { Editor, OnMount } from '@monaco-editor/react'
+import { configureMonaco } from '@/lib/editor/monaco-config'
+
+interface MonacoEditorProps {
+  language: 'yaml' | 'markdown'
+  value: string
+  onChange: (value: string) => void
+  schema?: object  // JSON Schema for validation
+  onValidate?: (markers: Marker[]) => void
+}
+
+export function MonacoEditor({
+  language,
+  value,
+  onChange,
+  schema,
+  onValidate
+}: MonacoEditorProps) {
+  const handleMount: OnMount = (editor, monaco) => {
+    // カスタム設定を適用
+    configureMonaco(monaco, { language, schema })
+
+    // リアルタイム検証
+    editor.onDidChangeModelContent(() => {
+      const markers = monaco.editor.getModelMarkers({})
+      onValidate?.(markers)
+    })
+  }
+
+  return (
+    <Editor
+      height="100%"
+      language={language}
+      value={value}
+      onChange={(v) => onChange(v ?? '')}
+      onMount={handleMount}
+      theme="agentmine-dark"
+      options={{
+        minimap: { enabled: false },
+        fontSize: 14,
+        lineNumbers: 'on',
+        wordWrap: 'on',
+        formatOnPaste: true,
+        formatOnType: true,
+        tabSize: 2,
+        quickSuggestions: true,
+        suggestOnTriggerCharacters: true,
+      }}
+    />
+  )
+}
+```
+
+#### カスタムテーマ
+
+```typescript
+// packages/web/src/lib/editor/themes.ts
+export const agentmineDarkTheme = {
+  base: 'vs-dark',
+  inherit: true,
+  rules: [
+    { token: 'key', foreground: '9CDCFE' },      // YAML keys
+    { token: 'string', foreground: 'CE9178' },   // strings
+    { token: 'number', foreground: 'B5CEA8' },   // numbers
+    { token: 'comment', foreground: '6A9955' },  // comments
+    { token: 'keyword', foreground: 'C586C0' },  // keywords
+  ],
+  colors: {
+    'editor.background': '#1e1e2e',
+    'editor.foreground': '#cdd6f4',
+    'editor.lineHighlightBackground': '#313244',
+    'editorError.foreground': '#f38ba8',
+    'editorWarning.foreground': '#fab387',
+  }
+}
+```
+
+---
+
+### 2. JSON Schemaによる検証
+
+#### Agent定義スキーマ
+
+```typescript
+// packages/web/src/lib/editor/schemas/agent-schema.ts
+export const agentSchema = {
+  $schema: 'http://json-schema.org/draft-07/schema#',
+  type: 'object',
+  required: ['name', 'client'],
+  properties: {
+    name: {
+      type: 'string',
+      description: 'エージェント名（英数字、ハイフン、アンダースコア）',
+      pattern: '^[a-zA-Z][a-zA-Z0-9_-]*$',
+    },
+    description: {
+      type: 'string',
+      description: 'エージェントの説明',
+    },
+    client: {
+      type: 'string',
+      enum: ['claude-code', 'codex', 'aider', 'gemini-cli', 'opencode'],
+      description: 'AIクライアント',
+    },
+    model: {
+      type: 'string',
+      description: 'モデル名（クライアント依存）',
+    },
+    scope: {
+      type: 'object',
+      properties: {
+        read: {
+          type: 'array',
+          items: { type: 'string' },
+          description: '読み取り可能なファイルパターン（glob）',
+        },
+        write: {
+          type: 'array',
+          items: { type: 'string' },
+          description: '書き込み可能なファイルパターン（glob）',
+        },
+        exclude: {
+          type: 'array',
+          items: { type: 'string' },
+          description: '除外するファイルパターン（glob）',
+        },
+      },
+    },
+    config: {
+      type: 'object',
+      properties: {
+        temperature: {
+          type: 'number',
+          minimum: 0,
+          maximum: 2,
+          description: '生成の多様性（0.0-2.0）',
+        },
+        maxTokens: {
+          type: 'integer',
+          minimum: 1,
+          description: '最大トークン数',
+        },
+        promptFile: {
+          type: 'string',
+          description: 'プロンプトファイルのパス',
+        },
+      },
+    },
+  },
+  additionalProperties: false,
+}
+```
+
+#### スキーマ登録
+
+```typescript
+// packages/web/src/lib/editor/monaco-config.ts
+import { agentSchema } from './schemas/agent-schema'
+import { configSchema } from './schemas/config-schema'
+
+export function configureMonaco(monaco: Monaco, options: ConfigOptions) {
+  // YAML言語設定
+  monaco.languages.yaml?.yamlDefaults.setDiagnosticsOptions({
+    validate: true,
+    enableSchemaRequest: true,
+    schemas: [
+      {
+        uri: 'agentmine://schemas/agent.json',
+        fileMatch: ['**/agents/*.yaml', '**/agents/*.yml'],
+        schema: agentSchema,
+      },
+      {
+        uri: 'agentmine://schemas/config.json',
+        fileMatch: ['**/config.yaml', '**/config.yml'],
+        schema: configSchema,
+      },
+    ],
+  })
+}
+```
+
+#### リアルタイムエラー表示
 
 ```
 ┌─ Edit Agent: coder ───────────────────────────────────────┐
 │ [UI Editor] [YAML Editor]          [Format: ⌘⇧F] [Save]   │
 ├───────────────────────────────────────────────────────────┤
 │  1 │ name: coder                                          │
-│  2 │ client: claude-code                                  │
+│  2 │ client: gpt-5          ← ⚠ 未知のクライアント       │
+│    │         ~~~~~                                        │
 │  3 │ model: opus                                          │
 │  4 │ scope:                                               │
 │  5 │   read:                                              │
 │  6 │     - "src/**"                                       │
-│  7 │   write                        ← エラー: コロン不足  │
-│    │         ~~~~~~                                       │
+│  7 │   write                 ← ✗ Expected ':'             │
+│    │         ~~~~~                                        │
+│  8 │     - "src/**"                                       │
+│  9 │   exclude:                                           │
+│ 10 │     - "**/*.env"                                     │
 ├───────────────────────────────────────────────────────────┤
-│ ⚠ Line 7: Expected ':' after key                         │
-│ YAML Invalid                       [Format: ⌘⇧F] [Save]   │
+│ Problems (2)                                              │
+│ ⚠ Line 2: "gpt-5" is not one of: claude-code, codex...   │
+│ ✗ Line 7: Expected ':' after property name               │
 └───────────────────────────────────────────────────────────┘
 ```
 
-**機能:**
-- **リアルタイム構文チェック**: 入力中にエラーをハイライト
-- **スキーマ検証**: Agent/Config定義に対するバリデーション
-- **自動フォーマット**: `Cmd+Shift+F` or 保存時に自動整形
-- **補完**: フィールド名、enum値の自動補完
+---
 
-#### Markdown編集
+### 3. IntelliSense（補完・ホバー）
+
+#### 自動補完
+
+```typescript
+// packages/web/src/lib/editor/completions.ts
+export function registerAgentCompletions(monaco: Monaco) {
+  monaco.languages.registerCompletionItemProvider('yaml', {
+    provideCompletionItems: (model, position) => {
+      const suggestions: CompletionItem[] = []
+
+      // client フィールドの補完
+      if (isInClientField(model, position)) {
+        suggestions.push(
+          { label: 'claude-code', detail: 'Claude Code CLI', insertText: 'claude-code' },
+          { label: 'codex', detail: 'OpenAI Codex CLI', insertText: 'codex' },
+          { label: 'aider', detail: 'Aider AI coding assistant', insertText: 'aider' },
+          { label: 'gemini-cli', detail: 'Google Gemini CLI', insertText: 'gemini-cli' },
+          { label: 'opencode', detail: 'OpenCode CLI', insertText: 'opencode' },
+        )
+      }
+
+      // scope パターンの補完
+      if (isInScopeField(model, position)) {
+        suggestions.push(
+          { label: '**/*', detail: '全ファイル', insertText: '"**/*"' },
+          { label: 'src/**', detail: 'srcディレクトリ', insertText: '"src/**"' },
+          { label: 'tests/**', detail: 'testsディレクトリ', insertText: '"tests/**"' },
+          { label: '**/*.env', detail: '環境変数ファイル', insertText: '"**/*.env"' },
+        )
+      }
+
+      return { suggestions }
+    }
+  })
+}
+```
+
+#### ホバー情報
+
+```typescript
+// packages/web/src/lib/editor/hover.ts
+export function registerAgentHover(monaco: Monaco) {
+  monaco.languages.registerHoverProvider('yaml', {
+    provideHover: (model, position) => {
+      const word = model.getWordAtPosition(position)
+
+      if (word?.word === 'claude-code') {
+        return {
+          contents: [
+            { value: '**Claude Code CLI**' },
+            { value: 'Anthropicの公式Claude CLIツール。\n\n自動承認: `--dangerously-skip-permissions`' },
+          ]
+        }
+      }
+
+      // フィールド説明
+      if (word?.word === 'scope') {
+        return {
+          contents: [
+            { value: '**scope** - アクセス制御設定' },
+            { value: '`read`: 読み取り可能なファイル\n`write`: 書き込み可能なファイル\n`exclude`: 完全に除外するファイル' },
+          ]
+        }
+      }
+
+      return null
+    }
+  })
+}
+```
 
 ```
-┌─ Memory: 001-monorepo.md ─────────────────────────────────┐
-│ [Edit] [Preview]                   [Format: ⌘⇧F] [Save]   │
+┌─ Edit Agent: coder ───────────────────────────────────────┐
+│  1 │ name: coder                                          │
+│  2 │ client: claude-code                                  │
+│              ┌────────────────────────────────────────┐   │
+│              │ Claude Code CLI                        │   │
+│              │                                        │   │
+│              │ Anthropicの公式Claude CLIツール。      │   │
+│              │                                        │   │
+│              │ 自動承認:                              │   │
+│              │ --dangerously-skip-permissions         │   │
+│              └────────────────────────────────────────┘   │
+│  3 │ model: opus                                          │
+└───────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 4. プロンプト専用Linter
+
+#### テンプレート変数検証
+
+プロンプトファイル内のテンプレート変数（`{{task.title}}` など）を検証。
+
+```typescript
+// packages/web/src/lib/editor/prompt-linter.ts
+const VALID_VARIABLES = [
+  'task.id',
+  'task.title',
+  'task.description',
+  'task.status',
+  'agent.name',
+  'agent.description',
+  'memory.content',
+  'session.id',
+  'worktree.path',
+]
+
+export function lintPrompt(content: string): Diagnostic[] {
+  const diagnostics: Diagnostic[] = []
+
+  // テンプレート変数を検出
+  const variableRegex = /\{\{([^}]+)\}\}/g
+  let match
+
+  while ((match = variableRegex.exec(content)) !== null) {
+    const variable = match[1].trim()
+
+    if (!VALID_VARIABLES.includes(variable)) {
+      diagnostics.push({
+        severity: 'warning',
+        message: `Unknown template variable: {{${variable}}}`,
+        startLine: getLineNumber(content, match.index),
+        startColumn: getColumnNumber(content, match.index),
+        endColumn: getColumnNumber(content, match.index + match[0].length),
+        source: 'prompt-linter',
+        suggestions: getSimilarVariables(variable),
+      })
+    }
+  }
+
+  return diagnostics
+}
+```
+
+#### Markdown構造検証
+
+```typescript
+// packages/web/src/lib/editor/markdown-linter.ts
+export function lintMarkdown(content: string, type: 'prompt' | 'memory'): Diagnostic[] {
+  const diagnostics: Diagnostic[] = []
+
+  // プロンプト固有のルール
+  if (type === 'prompt') {
+    // 必須セクションのチェック
+    if (!content.includes('## タスク') && !content.includes('## Task')) {
+      diagnostics.push({
+        severity: 'info',
+        message: 'プロンプトには「## タスク」セクションを含めることを推奨します',
+        startLine: 1,
+        startColumn: 1,
+        source: 'markdown-linter',
+      })
+    }
+
+    // コンテキスト注入ポイント
+    if (!content.includes('{{memory.content}}')) {
+      diagnostics.push({
+        severity: 'info',
+        message: 'Memory Bankの内容を注入するには {{memory.content}} を使用します',
+        startLine: 1,
+        startColumn: 1,
+        source: 'markdown-linter',
+      })
+    }
+  }
+
+  // Memory Bank固有のルール
+  if (type === 'memory') {
+    // 決定事項の明確化
+    if (!content.includes('決定') && !content.includes('Decision')) {
+      diagnostics.push({
+        severity: 'info',
+        message: 'Memory Bankには決定事項を明記することを推奨します',
+        startLine: 1,
+        startColumn: 1,
+        source: 'markdown-linter',
+      })
+    }
+  }
+
+  return diagnostics
+}
+```
+
+#### プロンプト編集UI
+
+```
+┌─ Edit Prompt: prompts/coder.md ───────────────────────────┐
+│ [Edit] [Preview] [Variables]       [Format: ⌘⇧F] [Save]   │
 ├───────────────────────────────────────────────────────────┤
-│  1 │ # Monorepo Architecture                              │
+│  1 │ # {{agent.name}} プロンプト                          │
 │  2 │                                                      │
-│  3 │ ## 決定事項                                          │
+│  3 │ ## タスク                                            │
 │  4 │                                                      │
-│  5 │ pnpm + Turborepo を使用する。                        │
-│  6 │                                                      │
-│  7 │ ## 理由                                              │
-│  8 │                                                      │
-│  9 │ - CLI/Web/Coreで型定義を共有                         │
-│ 10 │ - Turborepoのキャッシュで高速ビルド                  │
+│  5 │ **タイトル**: {{task.title}}                         │
+│  6 │ **説明**: {{task.description}}                       │
+│  7 │                                                      │
+│  8 │ ## コンテキスト                                      │
+│  9 │                                                      │
+│ 10 │ {{memory.content}}                                   │
+│ 11 │                                                      │
+│ 12 │ ## 制約                                              │
+│ 13 │                                                      │
+│ 14 │ - {{task.scope}} 内のファイルのみ編集可能            │
+│        ~~~~~~~~~~~~ ⚠ Unknown variable                   │
 ├───────────────────────────────────────────────────────────┤
-│ Markdown Valid ✓                   [Format: ⌘⇧F] [Save]   │
+│ Problems (1)                                              │
+│ ⚠ Line 14: Unknown template variable: {{task.scope}}     │
+│            Did you mean: task.status?                    │
+├───────────────────────────────────────────────────────────┤
+│ Available Variables:                                      │
+│ task.id, task.title, task.description, task.status,      │
+│ agent.name, agent.description, memory.content, ...       │
 └───────────────────────────────────────────────────────────┘
 ```
 
-**機能:**
-- **プレビュー切り替え**: Edit / Preview / Split
-- **自動フォーマット**: 見出し後の空行、リストのインデント統一
-- **テーブル整形**: Markdownテーブルの列幅を自動調整
+---
+
+### 5. 自動フォーマット
+
+#### Prettier統合
+
+```typescript
+// packages/web/src/lib/editor/formatter.ts
+import * as prettier from 'prettier/standalone'
+import * as yamlPlugin from 'prettier/plugins/yaml'
+import * as markdownPlugin from 'prettier/plugins/markdown'
+
+export async function formatDocument(
+  content: string,
+  language: 'yaml' | 'markdown'
+): Promise<string> {
+  const plugins = language === 'yaml'
+    ? [yamlPlugin]
+    : [markdownPlugin]
+
+  return prettier.format(content, {
+    parser: language,
+    plugins,
+    // YAML設定
+    tabWidth: 2,
+    singleQuote: true,
+    // Markdown設定
+    proseWrap: 'preserve',
+  })
+}
+```
+
+#### Monaco統合
+
+```typescript
+// packages/web/src/lib/editor/monaco-config.ts
+export function registerFormatter(monaco: Monaco) {
+  // YAML フォーマッタ
+  monaco.languages.registerDocumentFormattingEditProvider('yaml', {
+    async provideDocumentFormattingEdits(model) {
+      const formatted = await formatDocument(model.getValue(), 'yaml')
+      return [{
+        range: model.getFullModelRange(),
+        text: formatted,
+      }]
+    }
+  })
+
+  // Markdown フォーマッタ
+  monaco.languages.registerDocumentFormattingEditProvider('markdown', {
+    async provideDocumentFormattingEdits(model) {
+      const formatted = await formatDocument(model.getValue(), 'markdown')
+      return [{
+        range: model.getFullModelRange(),
+        text: formatted,
+      }]
+    }
+  })
+}
+```
+
+#### フォーマット設定
+
+```
+┌─ Editor Settings ─────────────────────────────────────────┐
+│                                                           │
+│ ─── フォーマット ─────────────────────────────────────    │
+│                                                           │
+│ [✓] 保存時に自動フォーマット                              │
+│ [✓] 貼り付け時にフォーマット                              │
+│ [ ] 入力時にフォーマット                                  │
+│                                                           │
+│ ─── YAML ─────────────────────────────────────────────    │
+│                                                           │
+│ インデント:    [2 spaces ▼]                               │
+│ 引用符:        [Single quotes ▼]                          │
+│ 行の折り返し:  [80 ▼] 文字                                │
+│                                                           │
+│ ─── Markdown ─────────────────────────────────────────    │
+│                                                           │
+│ 行の折り返し:  [preserve ▼]                               │
+│ テーブル整形:  [✓] 列幅を揃える                           │
+│                                                           │
+└───────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 6. Diagnosticsパネル
+
+全エラー・警告を一覧表示するパネル。
+
+```
+┌─ Problems ────────────────────────────────────────────────┐
+│ [All] [Errors: 1] [Warnings: 3] [Info: 2]                 │
+├───────────────────────────────────────────────────────────┤
+│                                                           │
+│ ✗ agents/coder.yaml:7:3                                   │
+│   Expected ':' after property name                        │
+│                                                           │
+│ ⚠ agents/coder.yaml:2:9                                   │
+│   "gpt-5" is not a valid client                           │
+│                                                           │
+│ ⚠ prompts/coder.md:14:5                                   │
+│   Unknown template variable: {{task.scope}}               │
+│                                                           │
+│ ⚠ config.yaml:15:3                                        │
+│   "maxWorker" should be "maxWorkers"                      │
+│                                                           │
+│ ℹ prompts/coder.md:1:1                                    │
+│   Consider adding a "## タスク" section                   │
+│                                                           │
+│ ℹ memory/architecture/001-monorepo.md:1:1                 │
+│   Consider adding explicit decision statements            │
+│                                                           │
+└───────────────────────────────────────────────────────────┘
+```
+
+---
 
 ### エディタショートカット
 
@@ -530,11 +1050,61 @@ YAML/Markdown編集時に自動で検証・整形を行う。
 |------|------|
 | `Cmd/Ctrl + S` | 保存 |
 | `Cmd/Ctrl + Shift + F` | フォーマット |
+| `Cmd/Ctrl + .` | クイックフィックス |
+| `Cmd/Ctrl + Space` | 補完を表示 |
+| `F2` | シンボル名変更 |
+| `F8` | 次のエラーへ移動 |
+| `Shift + F8` | 前のエラーへ移動 |
 | `Cmd/Ctrl + Z` | Undo |
 | `Cmd/Ctrl + Shift + Z` | Redo |
 | `Cmd/Ctrl + /` | コメントトグル（YAML） |
 | `Cmd/Ctrl + D` | 行/選択を複製 |
 | `Alt + ↑/↓` | 行を上下に移動 |
+| `Cmd/Ctrl + Shift + K` | 行を削除 |
+
+---
+
+### エディタコンポーネント構成
+
+```
+packages/web/src/
+├── components/
+│   └── editor/
+│       ├── monaco-editor.tsx      # Monacoラッパー
+│       ├── yaml-editor.tsx        # YAML専用
+│       ├── markdown-editor.tsx    # Markdown専用
+│       ├── prompt-editor.tsx      # プロンプト専用（変数補完付き）
+│       ├── diagnostics-panel.tsx  # 問題パネル
+│       └── editor-toolbar.tsx     # ツールバー
+│
+└── lib/
+    └── editor/
+        ├── monaco-config.ts       # Monaco設定
+        ├── themes.ts              # カスタムテーマ
+        ├── schemas/
+        │   ├── agent-schema.ts    # Agent YAML Schema
+        │   └── config-schema.ts   # Config YAML Schema
+        ├── completions.ts         # 自動補完
+        ├── hover.ts               # ホバー情報
+        ├── prompt-linter.ts       # プロンプトLint
+        ├── markdown-linter.ts     # Markdown Lint
+        └── formatter.ts           # Prettier統合
+```
+
+---
+
+### 技術スタック（エディタ関連）
+
+| 機能 | ライブラリ |
+|------|------------|
+| コードエディタ | [@monaco-editor/react](https://github.com/suren-atoyan/monaco-react) |
+| YAML検証 | [monaco-yaml](https://github.com/remcohaszing/monaco-yaml) |
+| JSON Schema | 内蔵（Monaco YAML統合） |
+| フォーマット | [Prettier](https://prettier.io/) (standalone) |
+| YAML解析 | [yaml](https://github.com/eemeli/yaml) |
+| Markdownプレビュー | [react-markdown](https://github.com/remarkjs/react-markdown) |
+
+---
 
 ## 技術スタック
 
@@ -786,3 +1356,371 @@ packages/web/
 ├── tailwind.config.ts
 └── tsconfig.json
 ```
+
+---
+
+## Worker制御（Web UIで完結）
+
+### 概要
+
+agentmineの核心機能は **Worker（AIエージェント）の起動・停止・監視**。
+CLIの`agentmine worker run`コマンドと同等の機能をWeb UIから操作可能にする。
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  人間は Web UI で完結                                        │
+│                                                             │
+│  タスク作成 → エージェント選択 → Worker起動 → 監視 → 完了   │
+│                                                             │
+│  CLI を覚える必要なし                                        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Worker起動フロー（UI操作）
+
+```
+┌─ Task Detail ─────────────────────────────────────────────┐
+│                                                           │
+│ #3 認証機能の実装                                          │
+│                                                           │
+│ Status: open → in_progress                                │
+│ Agent:  [coder ▼]                                         │
+│                                                           │
+│ ┌─────────────────────────────────────────────────────┐   │
+│ │                Worker Control                       │   │
+│ │                                                     │   │
+│ │   [▶ Worker起動]  [バックグラウンド起動]             │   │
+│ │                                                     │   │
+│ │   起動オプション:                                    │   │
+│ │   ☑ 自動承認モード (--dangerously-skip-permissions) │   │
+│ │   ☐ ドライラン (変更を実行しない)                    │   │
+│ │                                                     │   │
+│ └─────────────────────────────────────────────────────┘   │
+│                                                           │
+└───────────────────────────────────────────────────────────┘
+```
+
+### Worker監視（実行中）
+
+```
+┌─ Task #3: 認証機能の実装 ─────────────────────────────────┐
+│                                                           │
+│ Status: ● in_progress (Worker実行中)                      │
+│                                                           │
+│ ┌─────────────────────────────────────────────────────┐   │
+│ │ Worker Status                                       │   │
+│ │                                                     │   │
+│ │ ● 実行中  開始: 14:30  経過: 5m23s                   │   │
+│ │                                                     │   │
+│ │ Agent:    coder                                     │   │
+│ │ Client:   claude-code                               │   │
+│ │ Model:    opus                                      │   │
+│ │ Worktree: .agentmine/worktrees/task-3/              │   │
+│ │ PID:      12345                                     │   │
+│ │                                                     │   │
+│ │ Progress: ████████████░░░░░░░░ 60%                  │   │
+│ │ Activity: テストを実行中...                          │   │
+│ │                                                     │   │
+│ │ [■ 停止]  [📋 ログを見る]  [🔄 再起動]              │   │
+│ └─────────────────────────────────────────────────────┘   │
+│                                                           │
+└───────────────────────────────────────────────────────────┘
+```
+
+### Worker完了時
+
+```
+┌─ Task #3: 認証機能の実装 ─────────────────────────────────┐
+│                                                           │
+│ Status: ✓ done (Worker完了)                               │
+│                                                           │
+│ ┌─────────────────────────────────────────────────────┐   │
+│ │ Worker Result                                       │   │
+│ │                                                     │   │
+│ │ ✓ 完了  所要時間: 12m34s                            │   │
+│ │                                                     │   │
+│ │ Exit Code: 0                                        │   │
+│ │ Branch:    task-3                                   │   │
+│ │ Commits:   3                                        │   │
+│ │ Files:     +5 / -2 / ~8                             │   │
+│ │                                                     │   │
+│ │ [差分を見る]  [ブランチをマージ]  [クリーンアップ]   │   │
+│ └─────────────────────────────────────────────────────┘   │
+│                                                           │
+└───────────────────────────────────────────────────────────┘
+```
+
+### CLIコマンドとの対応
+
+| Web UI操作 | 対応するCLIコマンド |
+|------------|---------------------|
+| Worker起動 | `agentmine worker run <taskId> --exec` |
+| バックグラウンド起動 | `agentmine worker run <taskId> --exec --detach` |
+| Worker停止 | `agentmine worker stop <taskId>` |
+| 状態確認 | `agentmine worker status <taskId>` |
+| クリーンアップ | `agentmine worker done <taskId>` |
+| 並列起動の待機 | `agentmine worker wait <taskIds...>` |
+
+---
+
+## API Routes仕様
+
+### エンドポイント一覧
+
+| メソッド | パス | 説明 |
+|----------|------|------|
+| GET | `/api/tasks` | タスク一覧取得（フィルタ対応） |
+| POST | `/api/tasks` | タスク作成 |
+| GET | `/api/tasks/counts` | ステータス別カウント |
+| GET | `/api/tasks/[id]` | タスク詳細取得 |
+| PATCH | `/api/tasks/[id]` | タスク更新 |
+| DELETE | `/api/tasks/[id]` | タスク削除 |
+| GET | `/api/sessions` | セッション一覧 |
+| GET | `/api/sessions/[id]` | セッション詳細 |
+| GET | `/api/agents` | エージェント一覧 |
+| GET | `/api/agents/[name]` | エージェント詳細 |
+| PUT | `/api/agents/[name]` | エージェント更新 |
+| POST | `/api/workers/[taskId]/run` | Worker起動 |
+| POST | `/api/workers/[taskId]/stop` | Worker停止 |
+| GET | `/api/workers/[taskId]/status` | Worker状態取得 |
+| POST | `/api/workers/[taskId]/done` | Worker完了処理 |
+| GET | `/api/memory` | Memory一覧 |
+| GET | `/api/memory/[...path]` | Memoryファイル取得 |
+| PUT | `/api/memory/[...path]` | Memoryファイル更新 |
+
+### Tasks API
+
+```typescript
+// GET /api/tasks
+// Query: status, priority, type, assigneeName, limit, offset
+interface TasksResponse {
+  tasks: Task[]
+  total: number
+}
+
+// POST /api/tasks
+interface CreateTaskRequest {
+  title: string
+  description?: string
+  priority?: 'low' | 'medium' | 'high' | 'urgent'
+  type?: 'task' | 'feature' | 'bug' | 'refactor' | 'docs'
+  assigneeType?: 'ai' | 'human'
+  assigneeName?: string
+  parentId?: number
+}
+
+// GET /api/tasks/counts
+interface TaskCountsResponse {
+  open: number
+  in_progress: number
+  done: number
+  failed: number
+  cancelled: number
+}
+
+// PATCH /api/tasks/[id]
+interface UpdateTaskRequest {
+  title?: string
+  description?: string
+  status?: 'open' | 'in_progress' | 'done' | 'failed' | 'cancelled'
+  priority?: 'low' | 'medium' | 'high' | 'urgent'
+  // ...
+}
+```
+
+### Workers API
+
+```typescript
+// POST /api/workers/[taskId]/run
+interface RunWorkerRequest {
+  detach?: boolean      // バックグラウンド実行
+  dryRun?: boolean      // ドライラン
+  agentName?: string    // 使用するエージェント（省略時はタスクの割り当て）
+}
+
+interface RunWorkerResponse {
+  sessionId: number
+  pid?: number
+  worktreePath: string
+}
+
+// GET /api/workers/[taskId]/status
+interface WorkerStatusResponse {
+  status: 'idle' | 'running' | 'completed' | 'failed'
+  sessionId?: number
+  pid?: number
+  startedAt?: string
+  duration?: number     // seconds
+  progress?: number     // 0-100
+  activity?: string     // 現在の作業内容
+  exitCode?: number
+}
+
+// POST /api/workers/[taskId]/stop
+interface StopWorkerResponse {
+  success: boolean
+  message: string
+}
+
+// POST /api/workers/[taskId]/done
+interface DoneWorkerResponse {
+  success: boolean
+  worktreeRemoved: boolean
+  branchName: string
+}
+```
+
+### coreサービスとの連携
+
+```typescript
+// packages/web/src/app/api/tasks/route.ts
+import { getDb } from '@agentmine/core/db'
+import { TaskService } from '@agentmine/core/services'
+
+export async function GET(request: Request) {
+  const db = await getDb()
+  const taskService = new TaskService(db)
+
+  const { searchParams } = new URL(request.url)
+  const status = searchParams.get('status')
+  const priority = searchParams.get('priority')
+
+  const tasks = await taskService.findAll({
+    status: status as TaskStatus | undefined,
+    priority: priority as TaskPriority | undefined,
+  })
+
+  return Response.json({ tasks, total: tasks.length })
+}
+
+// packages/web/src/app/api/workers/[taskId]/run/route.ts
+import { WorktreeService } from '@agentmine/core/services'
+import { spawn } from 'child_process'
+
+export async function POST(
+  request: Request,
+  { params }: { params: { taskId: string } }
+) {
+  const taskId = parseInt(params.taskId)
+  const { detach, agentName } = await request.json()
+
+  const worktreeService = new WorktreeService()
+
+  // 1. Worktree作成
+  const worktree = worktreeService.create({ taskId })
+
+  // 2. スコープ適用
+  const agent = await agentService.getAgent(agentName || 'coder')
+  if (agent.scope) {
+    worktreeService.applyScope(taskId, agent.scope)
+  }
+
+  // 3. Worker起動
+  const process = spawn('agentmine', ['worker', 'run', taskId.toString(), '--exec'], {
+    cwd: worktree.path,
+    detached: detach,
+  })
+
+  return Response.json({
+    sessionId: session.id,
+    pid: process.pid,
+    worktreePath: worktree.path,
+  })
+}
+```
+
+---
+
+## リアルタイム更新
+
+### Server-Sent Events (SSE)
+
+Worker状態のリアルタイム更新にSSEを使用。
+
+```typescript
+// packages/web/src/app/api/workers/[taskId]/events/route.ts
+export async function GET(
+  request: Request,
+  { params }: { params: { taskId: string } }
+) {
+  const encoder = new TextEncoder()
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      const interval = setInterval(async () => {
+        const status = await getWorkerStatus(params.taskId)
+        const data = `data: ${JSON.stringify(status)}\n\n`
+        controller.enqueue(encoder.encode(data))
+
+        if (status.status === 'completed' || status.status === 'failed') {
+          clearInterval(interval)
+          controller.close()
+        }
+      }, 1000)
+    }
+  })
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    },
+  })
+}
+```
+
+### クライアント側
+
+```typescript
+// packages/web/src/hooks/use-worker-status.ts
+import { useEffect, useState } from 'react'
+
+export function useWorkerStatus(taskId: number) {
+  const [status, setStatus] = useState<WorkerStatus | null>(null)
+
+  useEffect(() => {
+    const eventSource = new EventSource(`/api/workers/${taskId}/events`)
+
+    eventSource.onmessage = (event) => {
+      setStatus(JSON.parse(event.data))
+    }
+
+    return () => eventSource.close()
+  }, [taskId])
+
+  return status
+}
+```
+
+---
+
+## 実装優先度（更新）
+
+| 優先度 | 機能 | 詳細 |
+|--------|------|------|
+| **P0** | API Routes基盤 | Tasks API、@core連携 |
+| **P0** | モックデータ置き換え | 既存UIを実データに接続 |
+| **P1** | Worker制御UI | 起動・停止ボタン、状態表示 |
+| **P1** | リアルタイム更新 | SSEでWorker状態監視 |
+| **P2** | Sessions一覧・詳細 | 完了済みセッション管理 |
+| **P2** | Agents管理 | 一覧・編集（UI/YAML） |
+| **P3** | Memory Bank | ファイルツリー、Markdownエディタ |
+| **P3** | Dashboard | 統計、クイックアクション |
+| **P4** | 高度な機能 | Kanbanボード、階層表示、キーボード完全対応 |
+
+### 実装ステップ（詳細）
+
+**Phase 0: API基盤**
+1. `/api/tasks` - GET (一覧), POST (作成)
+2. `/api/tasks/[id]` - GET, PATCH, DELETE
+3. `/api/tasks/counts` - GET
+4. 既存Tasks UIをAPIに接続
+
+**Phase 1: Worker制御**
+1. `/api/workers/[taskId]/run` - POST
+2. `/api/workers/[taskId]/stop` - POST
+3. `/api/workers/[taskId]/status` - GET
+4. `/api/workers/[taskId]/events` - GET (SSE)
+5. Task詳細にWorker制御UIを追加
+6. リアルタイム状態更新

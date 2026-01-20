@@ -2,29 +2,34 @@
 
 ## Design Philosophy
 
-**agentmineはBlackboard設計**を採用。データ層のみを提供し、判断・制御は行わない。
+**agentmineは並列AI開発の実行環境**。Redmine的運用でチーム協業をサポート。
 
 ```
-Human (ユーザー)
-    ↓ 会話
-AI as Orchestrator (Claude Code等のメインエージェント)
-    ↓ agentmineでタスク管理、Worker起動
-AI as Worker (サブエージェント)
-    ↓ 隔離されたworktreeで作業（agentmineにはアクセスしない）
-Git (成果物)
+┌─────────────────────────────────────────────────────────────────┐
+│  Redmine的運用                                                   │
+│                                                                 │
+│  チーム全員 ───→ 共有PostgreSQL ───→ 単一の真実源               │
+│                                                                 │
+│  Human A ──┐                                                     │
+│  Human B ──┼──→ Web UI ──┐                                       │
+│  Orchestrator ──→ CLI ──┼──→ DB (マスター) ──→ Worker           │
+│                         └──→ MCP ─────────────┘                 │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-- **Orchestrator**: ユーザーと会話し、タスク分解・Worker起動・監視を行うAI
-- **Worker**: 隔離されたworktreeでコードを書くAI（agentmineにアクセスしない）
-- **agentmine**: タスク・セッション・Memory Bankを管理するデータ層（Blackboard）
+- **人間**: Web UIで完結（タスク管理、Agent定義、Worker監視）
+- **Orchestrator**: CLI/MCPで自動化（Claude Code等）
+- **Worker**: 隔離されたworktreeでコードを書くAI
+- **agentmine**: すべてのデータをDB管理（Redmine的な単一真実源）
 
 ### 重要な設計原則
 
-1. **Blackboard設計**: agentmineはデータ永続化のみ、判断・制御しない
-2. **Observable Facts**: ステータスはexit code, merge状態等の客観事実で判定
-3. **Worker隔離**: Workerはagentmineにアクセスしない、隔離されたworktreeで作業
-4. **スコープ制御**: sparse-checkoutで物理的にファイルアクセスを制限
-5. **非対話Worker**: Workerは自動承認モードで動作
+1. **DBマスター**: すべてのデータ（タスク、Agent、Memory、設定）はDBで管理
+2. **Redmine的運用**: チーム全員が同じDBを参照、リアルタイム協業
+3. **Worker隔離**: Workerは隔離されたworktreeで作業、DB直接アクセスなし
+4. **スコープ制御**: sparse-checkout + chmodで物理的にファイルアクセスを制限
+5. **非対話Worker**: Workerは自動承認モードで動作（--dangerously-skip-permissions等）
+6. **Observable Facts**: ステータスはexit code, merge状態等の客観事実で判定
 
 ## System Overview
 
@@ -258,37 +263,50 @@ Cursor/Windsurf
 - 一貫したビルド・テスト環境
 - Turborepoのキャッシュで高速ビルド
 
-### 2. SQLite + PostgreSQL 二枚体制
+### 2. PostgreSQL メイン + SQLite サブ（Redmine的運用）
 
 **戦略:**
 
 | 環境 | DB | 用途 |
 |------|-----|------|
-| ローカル開発 | SQLite | ゼロ設定、ポータブル |
-| 本番環境 | PostgreSQL | AI機能（pgvector）、スケーラビリティ |
+| **チーム開発（メイン）** | **PostgreSQL** | 共有DB、Redmine的運用、リアルタイム協業 |
+| ローカル開発（サブ） | SQLite | 個人利用、お試し、オフライン |
+
+**DBがマスター:**
+- すべてのデータ（タスク、Agent定義、Memory Bank、設定）はDBで管理
+- ファイル出力は必要時に行う（Worker起動時、エクスポート時）
+- `.agentmine/`は`.gitignore`（リポジトリには含めない）
+
+**PostgreSQLメインの理由:**
+- 複数人でのリアルタイム協業（Redmine的運用）
+- トランザクション・排他制御
+- pgvectorによるベクトル検索（将来）
+- 変更履歴・監査ログの一元管理
+
+**SQLiteの位置づけ:**
+- 個人開発・お試し用
+- オフライン環境
+- `agentmine init`で即使用可能（PostgreSQL設定なしでも動作）
+
+### 3. DB-based Memory Bank & Agent定義
 
 **理由:**
-- SQLite: `agentmine init`だけで即使用可能
-- PostgreSQL: pgvectorによるベクトル検索でAI機能を強化
-  - Memory Bankのセマンティック検索
-  - タスク類似検索
-- Drizzle ORMで両方をサポート（クエリAPIは共通）
+- チーム間でリアルタイム共有
+- Web UIでの編集が自然
+- バージョン管理（履歴テーブル）
+- 検索・フィルタリングが効率的
 
-**参考:** [ADR-002: Database Strategy](./adr/002-sqlite-default.md)
+**Worker用ファイル出力:**
+- Worker起動時にDBからworktreeへ一時ファイル出力
+- `.agentmine-worker/`ディレクトリに配置
+- 完了後は削除（設定による）
 
-### 3. File-based Memory Bank
-
-**理由:**
-- Markdownで人間も読める
-- Gitで履歴管理可能
-- AIエージェントが直接読み書き可能
-
-### 4. YAML Configuration
+### 4. YAML/Markdown エクスポート
 
 **理由:**
-- 人間が読みやすい
-- コメント記述可能
-- 既存ツール（Claude Code等）との親和性
+- バックアップ・移行用
+- 人間が読める形式での確認
+- 他プロジェクトへの設定コピー
 
 ## Technology Stack
 

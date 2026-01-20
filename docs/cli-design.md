@@ -2,44 +2,83 @@
 
 ## Overview
 
-agentmine CLIは2つのユーザーを想定：
+agentmine CLIは **Orchestrator AI / スクリプト専用** のインターフェース。
 
-1. **人間**: プロジェクト管理、設定、モニタリング
-2. **AIエージェント**: タスク取得、ステータス更新、コンテキスト操作
+```
+┌─────────────────────────────────────────────────────────────┐
+│  インターフェースの役割分担                                   │
+│                                                             │
+│  人間        → Web UI      （ブラウザで完結）               │
+│  Orchestrator → CLI / MCP  （自動化・並列制御）             │
+│                                                             │
+│  人間がCLIを使う必要はない                                   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 想定ユーザー
+
+| ユーザー | インターフェース | 用途 |
+|----------|------------------|------|
+| **Orchestrator AI** | CLI / MCP | タスク管理、Worker起動、並列制御 |
+| **シェルスクリプト** | CLI | 自動化、CI/CD連携 |
+| **MCP経由** | CLI (内部) | Orchestratorからの直接呼び出し |
+
+### 人間が直接使わない理由
+
+- **繰り返し処理**: スクリプト化すべき → Orchestratorが担当
+- **状態確認**: Web UIの方が視認性が高い
+- **タスク管理**: Web UIの方が効率的
 
 ## Design Principles
 
-### 1. AI-Friendly Output
+### 1. AI-First Output
+
+**デフォルトでAI/スクリプトに最適化。** 人間向けフォーマットは補助的。
 
 ```bash
-# デフォルト: 人間向け（カラー、テーブル）
+# デフォルト: 機械可読（パイプ連携しやすい）
 agentmine task list
+# ID    STATUS       TITLE
+# 1     open         認証機能実装
+# 2     in_progress  API設計
 
-# --json: AI向け（構造化データ）
+# --json: 構造化データ（Orchestrator向け推奨）
 agentmine task list --json
 
-# --quiet: 最小出力（パイプ用）
-agentmine task add "タスク" --quiet  # → "1" (IDのみ)
+# --quiet: IDのみ（スクリプト用）
+agentmine task add "タスク" --quiet  # → "1"
+
+# --pretty: 人間向け（デバッグ時のみ）
+agentmine task list --pretty
 ```
 
-### 2. Composable Commands
+### 2. Composable for Automation
 
 ```bash
-# パイプで連携
-agentmine task list --status open --json | jq '.[0].id' | xargs agentmine task start
+# Orchestratorが実行するパイプライン
+agentmine task add "認証機能" --quiet | xargs -I {} agentmine worker run {} --exec --detach
 
-# サブコマンドの一貫性
+# 並列実行パターン
+agentmine worker run 1 --exec --detach
+agentmine worker run 2 --exec --detach
+agentmine worker wait 1 2
+
+# 結果の条件分岐
+if agentmine worker status 1 --json | jq -e '.status == "completed"'; then
+  agentmine worker done 1
+fi
+```
+
+### 3. Predictable Interface
+
+```bash
+# 一貫したサブコマンド構造
 agentmine <resource> <action> [args] [options]
-```
 
-### 3. Progressive Disclosure
-
-```bash
-# 基本（必須のみ）
-agentmine task add "タイトル"
-
-# 詳細（オプション追加）
-agentmine task add "タイトル" -p high -t feature --assignee coder
+# 一貫したオプション
+--json      # 全コマンドで使用可能
+--quiet     # 最小出力（ID等のみ）
+--pretty    # 人間向けフォーマット（デバッグ用）
 ```
 
 ## Command Structure
@@ -199,17 +238,23 @@ Examples:
 **出力例:**
 
 ```
-# 通常（テーブル）
-ID   Status       Priority  Type     Assignee      Title
-#1   open         high      feature  -             認証機能実装
-#2   in_progress  medium    task     🤖 coder      API設計
-#3   review       low       refactor 👤 tanaka     コード整理
+# デフォルト（タブ区切り、パイプ連携用）
+ID	STATUS	PRIORITY	TYPE	TITLE
+1	open	high	feature	認証機能実装
+2	in_progress	medium	task	API設計
+3	done	low	refactor	コード整理
 
-# --json
+# --json（Orchestrator向け推奨）
 [
   {"id":1,"title":"認証機能実装","status":"open",...},
   {"id":2,"title":"API設計","status":"in_progress",...}
 ]
+
+# --pretty（デバッグ用）
+ID   Status       Priority  Type     Assignee      Title
+#1   open         high      feature  -             認証機能実装
+#2   in_progress  medium    task     🤖 coder      API設計
+#3   done         low       refactor 👤 tanaka     コード整理
 ```
 
 ### task show
@@ -767,11 +812,32 @@ agentmine [command] [options]
 Global Options:
   -C, --cwd <path>    作業ディレクトリ
   --config <path>     設定ファイルパス
-  --json              JSON出力（対応コマンドのみ）
-  --quiet             最小出力
+  --json              JSON出力（Orchestrator向け、推奨）
+  --quiet             最小出力（IDのみ等、スクリプト用）
+  --pretty            人間向けフォーマット（デバッグ用）
   --verbose           詳細出力
   --version           バージョン表示
   --help              ヘルプ表示
+```
+
+### 出力モードの使い分け
+
+| モード | 用途 | 例 |
+|--------|------|-----|
+| デフォルト | パイプ連携、スクリプト | タブ区切りテキスト |
+| `--json` | Orchestrator AI | 構造化データ |
+| `--quiet` | 単一値の取得 | IDのみ |
+| `--pretty` | デバッグ、手動確認 | カラー付きテーブル |
+
+```bash
+# Orchestrator AI（推奨）
+agentmine task list --json | jq '.[] | select(.status == "open")'
+
+# スクリプト
+TASK_ID=$(agentmine task add "タスク" --quiet)
+
+# デバッグ（人間が確認）
+agentmine task list --pretty
 ```
 
 ## Exit Codes
@@ -820,7 +886,7 @@ const program = new Command();
 
 program
   .name('agentmine')
-  .description('AI Project Manager - Redmine for AI Agents')
+  .description('Safe Parallel AI Development Environment')
   .version('0.1.0');
 
 // Global options
@@ -846,45 +912,173 @@ program.parse();
 
 ### Output Formatting
 
+AI/スクリプト向けに最適化。`--pretty`でのみ人間向けフォーマット。
+
 ```typescript
 // packages/cli/src/utils/output.ts
 import chalk from 'chalk';
 import { table } from 'table';
 
 export function formatTask(task: Task, options: OutputOptions) {
+  // JSON: Orchestrator向け（推奨）
   if (options.json) {
     return JSON.stringify(task);
   }
-  
+
+  // Quiet: スクリプト用（IDのみ）
   if (options.quiet) {
     return String(task.id);
   }
-  
-  return `
+
+  // Pretty: デバッグ用（人間向け）
+  if (options.pretty) {
+    return `
 ${chalk.bold(`Task #${task.id}`)}: ${task.title}
   Status: ${colorStatus(task.status)}
   Priority: ${colorPriority(task.priority)}
   Assignee: ${formatAssignee(task)}
-  `.trim();
+    `.trim();
+  }
+
+  // Default: 機械可読テキスト（パイプ連携用）
+  return `${task.id}\t${task.status}\t${task.title}`;
 }
 
 export function formatTaskList(tasks: Task[], options: OutputOptions) {
+  // JSON: Orchestrator向け（推奨）
   if (options.json) {
     return JSON.stringify(tasks);
   }
-  
-  const data = [
-    ['ID', 'Status', 'Priority', 'Type', 'Assignee', 'Title'],
-    ...tasks.map(t => [
-      `#${t.id}`,
-      colorStatus(t.status),
-      colorPriority(t.priority),
-      t.type,
-      formatAssignee(t),
-      truncate(t.title, 40),
-    ]),
-  ];
-  
-  return table(data);
+
+  // Pretty: デバッグ用（人間向けテーブル）
+  if (options.pretty) {
+    const data = [
+      ['ID', 'Status', 'Priority', 'Type', 'Assignee', 'Title'],
+      ...tasks.map(t => [
+        `#${t.id}`,
+        colorStatus(t.status),
+        colorPriority(t.priority),
+        t.type,
+        formatAssignee(t),
+        truncate(t.title, 40),
+      ]),
+    ];
+    return table(data);
+  }
+
+  // Default: 機械可読テキスト（タブ区切り）
+  const header = 'ID\tSTATUS\tPRIORITY\tTYPE\tTITLE';
+  const rows = tasks.map(t =>
+    `${t.id}\t${t.status}\t${t.priority}\t${t.type}\t${t.title}`
+  );
+  return [header, ...rows].join('\n');
 }
 ```
+
+---
+
+## Orchestrator Usage Patterns
+
+Orchestrator AI（Claude Code等）がagentmine CLIを使用する典型的なパターン。
+
+### Pattern 1: シーケンシャル実行
+
+```bash
+# 1. タスク作成
+TASK_ID=$(agentmine task add "認証機能実装" -t feature --quiet)
+
+# 2. Worker起動（完了まで待機）
+agentmine worker run $TASK_ID --exec
+
+# 3. 完了処理
+agentmine worker done $TASK_ID
+```
+
+### Pattern 2: 並列実行
+
+```bash
+# 1. 複数タスク作成
+TASK1=$(agentmine task add "ログイン実装" --quiet)
+TASK2=$(agentmine task add "ログアウト実装" --quiet)
+TASK3=$(agentmine task add "認証テスト" --quiet)
+
+# 2. 並列でWorker起動
+agentmine worker run $TASK1 --exec --detach
+agentmine worker run $TASK2 --exec --detach
+agentmine worker run $TASK3 --exec --detach
+
+# 3. 全Worker完了待機
+agentmine worker wait $TASK1 $TASK2 $TASK3
+
+# 4. 結果確認・完了処理
+for ID in $TASK1 $TASK2 $TASK3; do
+  STATUS=$(agentmine worker status $ID --json | jq -r '.status')
+  if [ "$STATUS" = "completed" ]; then
+    agentmine worker done $ID
+  fi
+done
+```
+
+### Pattern 3: 条件分岐
+
+```bash
+# タスク状態に基づく判断
+TASK=$(agentmine task show 1 --json)
+STATUS=$(echo $TASK | jq -r '.status')
+
+case $STATUS in
+  "open")
+    agentmine worker run 1 --exec
+    ;;
+  "in_progress")
+    # 既に実行中
+    ;;
+  "done")
+    # マージ確認
+    git merge task-1
+    ;;
+esac
+```
+
+### Pattern 4: MCP経由
+
+```json
+// claude_desktop_config.json
+{
+  "mcpServers": {
+    "agentmine": {
+      "command": "npx",
+      "args": ["agentmine", "mcp", "serve"]
+    }
+  }
+}
+```
+
+Orchestrator AIがMCP経由でagentmineを直接操作：
+
+```
+User: タスク#1のWorkerを起動して
+
+Orchestrator: [MCP call: worker_run(taskId: 1, exec: true)]
+→ Workerが起動しました。セッション#5が開始されました。
+```
+
+---
+
+## CLI vs Web UI 役割分担
+
+| 操作 | CLI (Orchestrator) | Web UI (人間) |
+|------|:------------------:|:-------------:|
+| タスク作成 | ✓ `task add` | ✓ フォーム |
+| タスク一覧 | ✓ `task list --json` | ✓ テーブル/ボード |
+| Worker起動 | ✓ `worker run --exec` | ✓ ボタンクリック |
+| Worker停止 | ✓ `worker stop` | ✓ ボタンクリック |
+| 状態監視 | ✓ `worker status --json` | ✓ リアルタイム表示 |
+| 並列制御 | ✓ `worker wait` | - |
+| Agent編集 | - | ✓ UI/YAMLエディタ |
+| Memory編集 | ✓ `memory add/edit` | ✓ Markdownエディタ |
+| 差分確認 | ✓ `git diff` | ✓ ビジュアル差分 |
+
+**原則:**
+- **自動化・並列制御** → CLI（Orchestrator）
+- **視覚的確認・編集** → Web UI（人間）

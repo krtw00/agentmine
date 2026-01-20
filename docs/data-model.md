@@ -4,12 +4,26 @@
 
 | 環境 | DB | 用途 |
 |------|-----|------|
-| ローカル開発 | **SQLite** | ゼロ設定、ポータブル |
-| 本番環境 | **PostgreSQL** | AI機能（pgvector）、スケーラビリティ |
+| **チーム開発（メイン）** | **PostgreSQL** | 共有DB、Redmine的運用、リアルタイム協業 |
+| ローカル開発（サブ） | SQLite | 個人利用、お試し、オフライン |
 
-Drizzle ORMにより、両DBで共通のクエリAPIを使用。スキーマ定義は若干異なるが、アプリケーションコードは共通化可能。
+**DBがマスター。** すべてのデータはDBで管理し、ファイル出力は必要時に行う。
 
-**参考:** [ADR-002: Database Strategy](./adr/002-sqlite-default.md)
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Redmine的運用                                                   │
+│                                                                 │
+│  チーム全員 ───→ 共有PostgreSQL ───→ 単一の真実源               │
+│                                                                 │
+│  Web UI ──┐                                                      │
+│  CLI ─────┼──→ DB (マスター) ──→ Worker用ファイル出力           │
+│  MCP ─────┘                                                      │
+│                                                                 │
+│  .agentmine/ は .gitignore（リポジトリには含めない）            │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+Drizzle ORMにより、両DBで共通のクエリAPIを使用。
 
 ## ER Diagram
 
@@ -24,49 +38,57 @@ Drizzle ORMにより、両DBで共通のクエリAPIを使用。スキーマ定�
 │ updated_at      │
 └────────┬────────┘
          │
-         ▼
-┌─────────────────┐
-│      Task       │
-├─────────────────┤
-│ id          PK  │
-│ project_id  FK  │
-│ parent_id   FK  │──┐ (self-ref)
-│ title           │  │
-│ description     │  │
-│ status          │◄─┘
-│ priority        │
-│ type            │
-│ assignee_type   │
-│ assignee_name   │
-│ branch_name     │
-│ pr_url          │
-│ complexity      │
-│ created_at      │
+    ┌────┴────────────────────────────────────────┐
+    │                    │                        │
+    ▼                    ▼                        ▼
+┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+│      Task       │  │     Agent       │  │     Memory      │
+├─────────────────┤  ├─────────────────┤  ├─────────────────┤
+│ id          PK  │  │ id          PK  │  │ id          PK  │
+│ project_id  FK  │  │ project_id  FK  │  │ project_id  FK  │
+│ parent_id   FK  │  │ name            │  │ category        │
+│ title           │  │ description     │  │ title           │
+│ description     │  │ client          │  │ content         │
+│ status          │  │ model           │  │ version         │
+│ priority        │  │ scope       {}  │  │ created_by      │
+│ type            │  │ config      {}  │  │ created_at      │
+│ assignee_type   │  │ prompt_content  │  │ updated_at      │
+│ assignee_name   │  │ version         │  └────────┬────────┘
+│ branch_name     │  │ created_by      │           │
+│ pr_url          │  │ created_at      │           ▼
+│ complexity      │  │ updated_at      │  ┌─────────────────┐
+│ created_at      │  └────────┬────────┘  │ MemoryHistory   │
+│ updated_at      │           │           ├─────────────────┤
+└────────┬────────┘           ▼           │ id          PK  │
+         │           ┌─────────────────┐  │ memory_id   FK  │
+         ▼           │  AgentHistory   │  │ content         │
+┌─────────────────┐  ├─────────────────┤  │ version         │
+│     Session     │  │ id          PK  │  │ changed_by      │
+├─────────────────┤  │ agent_id    FK  │  │ changed_at      │
+│ id          PK  │  │ snapshot    {}  │  │ change_summary  │
+│ task_id     FK  │  │ version         │  └─────────────────┘
+│ agent_name      │  │ changed_by      │
+│ status          │  │ changed_at      │
+│ started_at      │  │ change_summary  │
+│ completed_at    │  └─────────────────┘
+│ duration_ms     │
+│ exit_code       │           ┌─────────────────┐
+│ dod_result      │           │   AuditLog      │
+│ artifacts   []  │           ├─────────────────┤
+│ error       {}  │           │ id          PK  │
+└─────────────────┘           │ project_id  FK  │
+                              │ user_id         │
+┌─────────────────┐           │ action          │
+│    Settings     │           │ entity_type     │
+├─────────────────┤           │ entity_id       │
+│ id          PK  │           │ changes     {}  │
+│ project_id  FK  │           │ created_at      │
+│ key             │           └─────────────────┘
+│ value       {}  │
+│ updated_by      │
 │ updated_at      │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐       ┌───────────────────┐
-│     Session     │       │ ProjectDecision   │
-├─────────────────┤       ├───────────────────┤
-│ id          PK  │       │ id            PK  │
-│ task_id     FK  │       │ category          │
-│ agent_name      │       │ title             │
-│ status          │       │ decision          │
-│ started_at      │       │ reason            │
-│ completed_at    │       │ related_task_id FK│
-│ duration_ms     │       │ created_at        │
-│ artifacts   []  │       │ updated_at        │
-│ error       {}  │       └───────────────────┘
 └─────────────────┘
-
-※ Agent定義はDBではなくYAMLファイルで管理
-  (.agentmine/agents/*.yaml)
 ```
-
-**Note:**
-- スキル管理は agentmine の範囲外（各AIツールに委ねる）
-- ツール制限も agentmine では制御不可（AIクライアント側の責務）
 
 ## Schema Definition (Drizzle)
 
@@ -79,33 +101,32 @@ export const tasks = sqliteTable('tasks', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   projectId: integer('project_id').references(() => projects.id),
   parentId: integer('parent_id').references(() => tasks.id),
-  // Note: 循環依存はアプリケーション層で防止（DB制約では不可）
 
   title: text('title').notNull(),
   description: text('description'),
-  
+
   status: text('status', {
     enum: ['open', 'in_progress', 'done', 'failed', 'cancelled']
   }).notNull().default('open'),
-  
-  priority: text('priority', { 
-    enum: ['low', 'medium', 'high', 'critical'] 
+
+  priority: text('priority', {
+    enum: ['low', 'medium', 'high', 'critical']
   }).notNull().default('medium'),
-  
-  type: text('type', { 
-    enum: ['task', 'feature', 'bug', 'refactor'] 
+
+  type: text('type', {
+    enum: ['task', 'feature', 'bug', 'refactor']
   }).notNull().default('task'),
-  
-  assigneeType: text('assignee_type', { 
-    enum: ['ai', 'human'] 
+
+  assigneeType: text('assignee_type', {
+    enum: ['ai', 'human']
   }),
   assigneeName: text('assignee_name'),
-  
+
   branchName: text('branch_name'),
   prUrl: text('pr_url'),
 
   complexity: integer('complexity'), // 1-10
-  
+
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()
     .default(sql`(unixepoch())`),
@@ -118,35 +139,184 @@ export type Task = typeof tasks.$inferSelect;
 export type NewTask = typeof tasks.$inferInsert;
 ```
 
-### agents
-
-**Note:** エージェント定義はYAMLファイル（`.agentmine/agents/*.yaml`）で管理。DBには保存しない。
-
-詳細は [Agent System](./features/agent-system.md) を参照。
+### agents（NEW: DBで管理）
 
 ```typescript
-// YAMLから読み込まれる型定義
-interface Agent {
-  name: string;
-  description: string;
-  client: string;          // claude-code, opencode, codex等
-  model: string;           // opus, sonnet, gpt-5等
-  scope: {
-    read: string[];        // 参照可能（globパターン）
-    write: string[];       // 編集可能（globパターン）
-    exclude: string[];     // アクセス不可（globパターン）
-  };
-  config: {
-    temperature?: number;
-    maxTokens?: number;
-    promptFile?: string;   // プロンプトファイルパス
-  };
-}
+export const agents = sqliteTable('agents', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  projectId: integer('project_id').references(() => projects.id),
+
+  name: text('name').notNull(),
+  description: text('description'),
+
+  client: text('client', {
+    enum: ['claude-code', 'codex', 'aider', 'gemini-cli', 'opencode']
+  }).notNull(),
+  model: text('model').notNull(),
+
+  // スコープ設定（JSON）
+  scope: text('scope', { mode: 'json' })
+    .$type<{
+      read: string[];
+      write: string[];
+      exclude: string[];
+    }>()
+    .notNull()
+    .default({ read: ['**/*'], write: [], exclude: [] }),
+
+  // 追加設定（JSON）
+  config: text('config', { mode: 'json' })
+    .$type<{
+      temperature?: number;
+      maxTokens?: number;
+    }>()
+    .default({}),
+
+  // プロンプト内容（DB内で管理）
+  promptContent: text('prompt_content'),
+
+  // バージョン管理
+  version: integer('version').notNull().default(1),
+  createdBy: text('created_by'),
+
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  updatedAt: integer('updated_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
+// ユニーク制約: プロジェクト内でエージェント名は一意
+// CREATE UNIQUE INDEX idx_agents_name ON agents(project_id, name);
 ```
 
-**Note:**
-- `tools` フィールドは削除。ツール制限はAIクライアント側の責務。
-- `skills` フィールドも削除。スキル管理は agentmine の範囲外。
+### agent_history（NEW: 変更履歴）
+
+```typescript
+export const agentHistory = sqliteTable('agent_history', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  agentId: integer('agent_id')
+    .references(() => agents.id)
+    .notNull(),
+
+  // 変更前のスナップショット（全フィールド）
+  snapshot: text('snapshot', { mode: 'json' })
+    .$type<{
+      name: string;
+      description?: string;
+      client: string;
+      model: string;
+      scope: object;
+      config: object;
+      promptContent?: string;
+    }>()
+    .notNull(),
+
+  version: integer('version').notNull(),
+  changedBy: text('changed_by'),
+  changedAt: integer('changed_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  changeSummary: text('change_summary'), // 変更内容の要約
+});
+```
+
+### memories（NEW: Memory BankをDB管理）
+
+```typescript
+export const memories = sqliteTable('memories', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  projectId: integer('project_id').references(() => projects.id),
+
+  category: text('category', {
+    enum: ['architecture', 'tooling', 'convention', 'rule', 'decision']
+  }).notNull(),
+
+  title: text('title').notNull(),
+  content: text('content').notNull(), // Markdown
+
+  // バージョン管理
+  version: integer('version').notNull().default(1),
+  createdBy: text('created_by'),
+
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  updatedAt: integer('updated_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+```
+
+### memory_history（NEW: Memory変更履歴）
+
+```typescript
+export const memoryHistory = sqliteTable('memory_history', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  memoryId: integer('memory_id')
+    .references(() => memories.id)
+    .notNull(),
+
+  content: text('content').notNull(), // 変更前の内容
+  version: integer('version').notNull(),
+  changedBy: text('changed_by'),
+  changedAt: integer('changed_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  changeSummary: text('change_summary'),
+});
+```
+
+### settings（NEW: 設定をDB管理）
+
+```typescript
+export const settings = sqliteTable('settings', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  projectId: integer('project_id').references(() => projects.id),
+
+  key: text('key').notNull(), // e.g., 'git.baseBranch', 'execution.maxWorkers'
+  value: text('value', { mode: 'json' }).notNull(),
+
+  updatedBy: text('updated_by'),
+  updatedAt: integer('updated_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
+// ユニーク制約: プロジェクト内で設定キーは一意
+// CREATE UNIQUE INDEX idx_settings_key ON settings(project_id, key);
+```
+
+### audit_logs（NEW: 監査ログ）
+
+```typescript
+export const auditLogs = sqliteTable('audit_logs', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  projectId: integer('project_id').references(() => projects.id),
+
+  userId: text('user_id'), // 操作者（人間 or AI識別子）
+  action: text('action', {
+    enum: ['create', 'update', 'delete', 'start', 'stop', 'export']
+  }).notNull(),
+
+  entityType: text('entity_type', {
+    enum: ['task', 'agent', 'memory', 'session', 'settings']
+  }).notNull(),
+  entityId: integer('entity_id'),
+
+  changes: text('changes', { mode: 'json' })
+    .$type<{
+      before?: object;
+      after?: object;
+      summary?: string;
+    }>(),
+
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+```
 
 ### sessions
 
@@ -171,20 +341,20 @@ export const sessions = sqliteTable('sessions', {
   durationMs: integer('duration_ms'),
 
   // Worker終了情報（観測可能な事実）
-  exitCode: integer('exit_code'),     // プロセス終了コード
-  signal: text('signal'),              // 終了シグナル（SIGTERM等）
+  exitCode: integer('exit_code'),
+  signal: text('signal'),
 
   // DoD判定結果
   dodResult: text('dod_result', {
     enum: ['pending', 'merged', 'timeout', 'error']
   }).default('pending'),
 
-  // 成果物（変更されたファイルパス、worktreeルートからの相対パス）
+  // 成果物
   artifacts: text('artifacts', { mode: 'json' })
     .$type<string[]>()
     .default([]),
 
-  // エラー情報（失敗時）
+  // エラー情報
   error: text('error', { mode: 'json' })
     .$type<SessionError | null>()
     .default(null),
@@ -197,51 +367,59 @@ interface SessionError {
 }
 ```
 
-**Note:**
-- `tokenUsage` は測定不可のため削除。Orchestrator が観測可能な範囲のみ記録。
-- `taskId` にUNIQUE制約を追加。1タスク1セッションをDB層で保証。
+## Worker用ファイル出力
 
-### Session 再実行フロー
-
-1タスク1セッション制約のため、タスクを再実行するにはセッションを削除する必要がある。
+Worker実行時、DBからworktreeへ必要なファイルを出力する。
 
 ```
-タスク#1 (failed)
-    ↓
-1. agentmine session cleanup 123  # セッション削除
-    ↓
-2. agentmine session start 1 --agent coder  # 新セッション作成
-    ↓
-3. Worker起動（Orchestrator）
+Worker起動時:
+1. DB から Agent定義を取得
+2. worktree に一時ファイルとして出力
+   └── .agentmine-worker/
+       ├── agent.yaml      # このWorker用のAgent定義
+       ├── prompt.md       # プロンプト
+       └── memory/         # 関連Memory（スナップショット）
+           ├── architecture/
+           └── tooling/
+3. Worker実行
+4. 完了後、一時ファイルは削除（設定による）
 ```
 
-**複数クライアント競合時:**
-- DB制約（UNIQUE）によりエラー
-- リトライはOrchestratorの責務
-- agentmineは調停しない（Blackboard設計）
+```typescript
+// Worker起動時のファイル出力
+async function exportForWorker(taskId: number, worktreePath: string) {
+  const task = await taskService.get(taskId);
+  const agent = await agentService.getByName(task.assigneeName);
+  const memories = await memoryService.getAll();
 
-### Memory Bank
+  const outputDir = path.join(worktreePath, '.agentmine-worker');
+  await fs.mkdir(outputDir, { recursive: true });
 
-**ファイルベースのみ**（DBテーブルなし）
+  // Agent定義をYAML出力
+  await fs.writeFile(
+    path.join(outputDir, 'agent.yaml'),
+    yaml.stringify(agent)
+  );
 
+  // プロンプト出力
+  if (agent.promptContent) {
+    await fs.writeFile(
+      path.join(outputDir, 'prompt.md'),
+      agent.promptContent
+    );
+  }
+
+  // Memory出力
+  for (const memory of memories) {
+    const memoryPath = path.join(outputDir, 'memory', memory.category);
+    await fs.mkdir(memoryPath, { recursive: true });
+    await fs.writeFile(
+      path.join(memoryPath, `${memory.title}.md`),
+      memory.content
+    );
+  }
+}
 ```
-.agentmine/memory/
-├── architecture/
-│   └── 001-monorepo.md
-├── tooling/
-│   └── 001-vitest.md
-└── convention/
-    └── 001-commit-format.md
-```
-
-**理由:**
-- Markdownで人間も読める
-- Gitで履歴管理可能
-- DBとの同期複雑性を回避
-
-詳細は [Memory Bank](./features/memory-bank.md) を参照。
-
-**Note:** `skills` テーブルは削除。スキル管理は agentmine の範囲外。
 
 ## Status Transitions
 
@@ -262,26 +440,6 @@ Any state → cancelled
 failed → open (再試行時)
 ```
 
-### ステータス判定ロジック
-
-```
-Orchestratorもworkerも「完了」を報告する権限を持たない。
-ステータスは以下の観測可能な事実に基づいて判定する：
-
-【done判定】
-  ブランチがbaseBranchにマージされた
-  → git log --oneline baseBranch..task-branch が空
-
-【failed判定】
-  Worker プロセスが異常終了した
-  → exit code != 0
-  → シグナル受信（SIGTERM, SIGKILL等）
-  → タイムアウト（設定時間超過）
-
-【in_progress判定】
-  Worker起動後、done/failedどちらでもない状態
-```
-
 ### Session Status
 
 ```
@@ -298,46 +456,6 @@ Orchestratorもworkerも「完了」を報告する権限を持たない。
 running → cancelled (manual stop)
 ```
 
-## 制約・検証
-
-### タスク循環依存の防止
-
-親子関係による循環依存（A→B→A）はアプリケーション層で防止する。
-
-```typescript
-// packages/core/src/services/task-service.ts
-async function setParent(taskId: number, parentId: number): Promise<void> {
-  // 循環チェック
-  if (await wouldCreateCycle(taskId, parentId)) {
-    throw new Error('Circular dependency detected');
-  }
-  // ...
-}
-
-async function wouldCreateCycle(taskId: number, parentId: number): Promise<boolean> {
-  let current = parentId;
-  const visited = new Set<number>();
-
-  while (current !== null) {
-    if (current === taskId || visited.has(current)) {
-      return true;
-    }
-    visited.add(current);
-    const parent = await db.query.tasks.findFirst({
-      where: eq(tasks.id, current),
-      columns: { parentId: true }
-    });
-    current = parent?.parentId ?? null;
-  }
-  return false;
-}
-```
-
-### 同時更新の扱い
-
-SQLiteの制約上、同時書き込みは直列化される（WALモード使用時）。
-`updatedAt`フィールドは記録用であり、楽観的ロックには使用しない。
-
 ## Indexes
 
 ```sql
@@ -351,121 +469,66 @@ CREATE INDEX idx_tasks_parent ON tasks(parent_id);
 CREATE INDEX idx_sessions_task ON sessions(task_id);
 CREATE INDEX idx_sessions_status ON sessions(status);
 
--- Project decisions queries
-CREATE INDEX idx_decisions_category ON project_decisions(category);
+-- Agent queries
+CREATE UNIQUE INDEX idx_agents_name ON agents(project_id, name);
+
+-- Memory queries
+CREATE INDEX idx_memories_category ON memories(category);
+CREATE INDEX idx_memories_project ON memories(project_id);
+
+-- Settings queries
+CREATE UNIQUE INDEX idx_settings_key ON settings(project_id, key);
+
+-- Audit log queries
+CREATE INDEX idx_audit_logs_entity ON audit_logs(entity_type, entity_id);
+CREATE INDEX idx_audit_logs_user ON audit_logs(user_id);
+CREATE INDEX idx_audit_logs_created ON audit_logs(created_at);
 ```
 
-## Configuration Schema (YAML)
+## PostgreSQL拡張: pgvector（将来）
 
-### ファイル構造
+本番環境（PostgreSQL）では、pgvectorを使用したベクトル検索が利用可能。
 
-```
-.agentmine/
-├── config.yaml           # 基本設定
-├── agents/               # エージェント定義（1ファイル1エージェント）
-│   ├── coder.yaml
-│   ├── reviewer.yaml
-│   └── ...
-└── prompts/              # 詳細指示（Markdown）
-    ├── coder.md
-    ├── reviewer.md
-    └── ...
-```
+### memories（PostgreSQL版 + ベクトル）
 
-### config.yaml
+```typescript
+import { pgTable, serial, text, integer, timestamp, vector } from 'drizzle-orm/pg-core';
 
-```yaml
-# Project configuration
-project:
-  name: string          # optional（1プロジェクト=1agentmine）
-  description: string   # optional
+export const memories = pgTable('memories', {
+  id: serial('id').primaryKey(),
+  projectId: integer('project_id').references(() => projects.id),
 
-# Database configuration
-database:
-  url: string           # file:./data.db or postgres://...
+  category: text('category').notNull(),
+  title: text('title').notNull(),
+  content: text('content').notNull(),
 
-# Git integration
-git:
-  baseBranch: string    # required（マージ先ブランチ）
-  branchPrefix: string  # default: "task-"
-  commitConvention:
-    enabled: boolean    # default: true
-    format: string      # conventional | simple | custom
+  // ベクトル埋め込み（セマンティック検索用）
+  embedding: vector('embedding', { dimensions: 1536 }),
 
-# Execution settings
-execution:
-  parallel:
-    enabled: boolean
-    maxWorkers: number
-    worktree:
-      path: string      # default: ".worktrees/"
-      cleanup: boolean  # default: true
-
-# Session log retention
-sessionLog:
-  retention:
-    enabled: boolean    # default: false
-    days: number        # 保持日数
+  version: integer('version').notNull().default(1),
+  createdBy: text('created_by'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at'),
+});
 ```
 
-### agents/*.yaml
+### セマンティック検索（将来）
 
-```yaml
-# .agentmine/agents/coder.yaml
-name: string              # required, unique
-description: string
-client: string            # claude-code | opencode | codex | ...
-model: string             # opus | sonnet | haiku | gpt-5 | ...
-scope:
-  read: string[]          # 参照可能（globパターン）
-  write: string[]         # 編集可能（globパターン）
-  exclude: string[]       # アクセス不可（globパターン）
-config:
-  temperature: number     # 0.0 - 1.0
-  maxTokens: number
-  promptFile: string      # プロンプトファイルパス（相対パス）
+```typescript
+// 関連するMemoryを検索
+const similarMemories = await db.execute(sql`
+  SELECT id, title, content,
+         1 - (embedding <=> ${queryEmbedding}) as similarity
+  FROM memories
+  WHERE project_id = ${projectId}
+  ORDER BY embedding <=> ${queryEmbedding}
+  LIMIT 5
+`);
 ```
-
-詳細は [Agent System](./features/agent-system.md) を参照。
 
 ## Migration Strategy
 
-### Initial Migration
-
-```typescript
-// packages/core/src/db/migrations/0001_initial.ts
-import { sql } from 'drizzle-orm';
-
-export async function up(db: Database) {
-  await db.run(sql`
-    CREATE TABLE IF NOT EXISTS tasks (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      project_id INTEGER,
-      parent_id INTEGER REFERENCES tasks(id),
-      title TEXT NOT NULL,
-      description TEXT,
-      status TEXT NOT NULL DEFAULT 'open',
-      priority TEXT NOT NULL DEFAULT 'medium',
-      type TEXT NOT NULL DEFAULT 'task',
-      assignee_type TEXT,
-      assignee_name TEXT,
-      branch_name TEXT,
-      pr_url TEXT,
-      complexity INTEGER,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
-      updated_at INTEGER NOT NULL DEFAULT (unixepoch())
-    )
-  `);
-  
-  // ... other tables
-}
-
-export async function down(db: Database) {
-  await db.run(sql`DROP TABLE IF EXISTS tasks`);
-}
-```
-
-### Running Migrations
+### 初期マイグレーション
 
 ```bash
 # マイグレーション生成
@@ -478,66 +541,39 @@ agentmine db migrate
 agentmine db migrate:rollback
 ```
 
-## PostgreSQL拡張: pgvector（将来）
+### 既存YAMLからのインポート（移行用）
 
-本番環境（PostgreSQL）では、pgvectorを使用したベクトル検索が利用可能。
+```bash
+# 既存の.agentmine/からDBへインポート
+agentmine db import --from .agentmine/
 
-### project_decisions（PostgreSQL版）
-
-```typescript
-import { pgTable, serial, text, integer, timestamp, vector } from 'drizzle-orm/pg-core';
-
-export const projectDecisions = pgTable('project_decisions', {
-  id: serial('id').primaryKey(),
-
-  category: text('category', {
-    enum: ['architecture', 'tooling', 'convention', 'rule']
-  }).notNull(),
-
-  title: text('title').notNull(),
-  decision: text('decision').notNull(),
-  reason: text('reason'),
-
-  relatedTaskId: integer('related_task_id').references(() => tasks.id),
-
-  // ベクトル埋め込み（将来追加）
-  embedding: vector('embedding', { dimensions: 1536 }),
-
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at'),
-});
+# 個別インポート
+agentmine agent import --file .agentmine/agents/coder.yaml
+agentmine memory import --dir .agentmine/memory/
 ```
 
-### ベクトル検索インデックス
+## エクスポート機能
 
-```sql
--- pgvector拡張を有効化
-CREATE EXTENSION IF NOT EXISTS vector;
+DBからファイルへのエクスポート（バックアップ、共有用）。
 
--- HNSWインデックス（高速な近似最近傍検索）
-CREATE INDEX ON project_decisions
-USING hnsw (embedding vector_cosine_ops);
+```bash
+# 全データエクスポート
+agentmine export --output ./backup/
+
+# 個別エクスポート
+agentmine agent export coder --output ./coder.yaml
+agentmine memory export --output ./memory/
 ```
 
-### セマンティック検索クエリ（将来）
-
-```typescript
-import { sql } from 'drizzle-orm';
-
-// 類似する決定事項を検索
-const similarDecisions = await db.execute(sql`
-  SELECT id, title, decision, reason,
-         1 - (embedding <=> ${queryEmbedding}) as similarity
-  FROM project_decisions
-  ORDER BY embedding <=> ${queryEmbedding}
-  LIMIT 5
-`);
 ```
-
-### ユースケース（将来）
-
-| 機能 | 説明 |
-|------|------|
-| 決定事項のセマンティック検索 | 関連する過去の決定を検索 |
-| タスク類似検索 | 「似たタスクを探す」 |
-| 重複検出 | 同様の決定を検出 |
+./backup/
+├── agents/
+│   ├── coder.yaml
+│   └── reviewer.yaml
+├── memory/
+│   ├── architecture/
+│   │   └── 001-monorepo.md
+│   └── tooling/
+│       └── 001-vitest.md
+└── settings.yaml
+```
