@@ -29,27 +29,27 @@ appendix                             ← 付録（用語集・FAQ等）
 
 agentmineが何をするものか理解したい：
 
-1. **@01-introduction/overview.md** - プロジェクト概要・Core Value
-2. **@02-architecture/overview.md** - システム構成図
-3. **@03-core-concepts/orchestrator-worker.md** - Orchestrator/Workerモデル
+1. **@architecture.md** - プロジェクト概要・システム構成図・Core Value
+2. **@03-core-concepts/orchestrator-worker.md** - Orchestrator/Workerモデル
+3. **@README.md** - クイックスタート
 
 ### 利用者（Orchestrator開発者）
 
 AIを使って開発タスクを自動化したい：
 
 1. **@07-runtime/worker-lifecycle.md** - Worker起動から終了まで
-2. **@06-interfaces/cli/commands.md** - CLIコマンド一覧
-3. **@05-features/memory-bank.md** - プロジェクト決定事項の管理
-4. **@06-interfaces/mcp/tools.md** - MCPツール一覧
+2. **@06-interfaces/cli/overview.md** - CLIコマンド一覧
+3. **@features/memory-bank.md** - プロジェクト決定事項の管理
+4. **@06-interfaces/mcp/overview.md** - MCPツール一覧
 
 ### 開発者（agentmine本体を開発）
 
 agentmineの機能を実装・拡張したい：
 
-1. **@09-development/getting-started.md** - 開発環境セットアップ
-2. **@04-data/schema.md** - データベーススキーマ
-3. **@02-architecture/components.md** - パッケージ構成
-4. **@09-development/implementation-notes.md** - 実装ガイド
+1. **@implementation-plan.md** - 開発環境セットアップ・実装ガイド
+2. **@data-model.md** - データベーススキーマ
+3. **@architecture.md** - パッケージ構成
+4. **@README.md** - クイックスタート
 
 ---
 
@@ -62,9 +62,9 @@ agentmineの機能を実装・拡張したい：
 **必読ドキュメント:**
 1. @03-core-concepts/orchestrator-worker.md - あなたの役割
 2. @07-runtime/worker-lifecycle.md - Worker起動・監視・完了
-3. @07-runtime/parallel-execution.md - 並列実行の方法
-4. @05-features/memory-bank.md - プロジェクト知識の管理
-5. @06-interfaces/cli/reference.md - CLIコマンドリファレンス
+3. @features/parallel-execution.md - 並列実行の方法
+4. @features/memory-bank.md - プロジェクト知識の管理
+5. @06-interfaces/cli/overview.md - CLIコマンドリファレンス
 
 **典型的なフロー:**
 ```bash
@@ -86,34 +86,33 @@ agentmine worker done 1
 **目的**: Web画面でタスク管理・Agent定義・Worker監視
 
 **必読ドキュメント:**
-1. @06-interfaces/web/overview.md - Web UIの全体像
-2. @06-interfaces/web/pages.md - 各画面の使い方
-3. @05-features/task-management.md - タスク管理
-4. @05-features/agent-definition.md - Agent定義
+1. @06-interfaces/web/overview.md - Web UIの全体像・各画面の使い方
+2. @features/agent-system.md - Agent定義
+3. @data-model.md - データモデル
 
 ### agentmine開発者
 
 #### バックエンド開発者
 
 **必読ドキュメント:**
-1. @04-data/schema.md - DBスキーマ
-2. @02-architecture/components.md - パッケージ構成
+1. @data-model.md - DBスキーマ
+2. @architecture.md - パッケージ構成
 3. @06-interfaces/cli/overview.md - CLI設計
 4. @06-interfaces/mcp/overview.md - MCP設計
 
 #### フロントエンド開発者
 
 **必読ドキュメント:**
-1. @06-interfaces/web/overview.md - Web UI構成
-2. @06-interfaces/web/api.md - API Routes仕様
-3. @04-data/schema.md - データモデル
+1. @06-interfaces/web/overview.md - Web UI構成・API Routes仕様
+2. @data-model.md - データモデル
+3. @architecture.md - システム構成
 
 #### Worker実装者（AIクライアント対応）
 
 **必読ドキュメント:**
 1. @03-core-concepts/scope-control.md - スコープ制御
 2. @07-runtime/worker-lifecycle.md - Worker実行フロー
-3. @05-features/agent-definition.md - Agent定義
+3. @features/agent-system.md - Agent定義
 
 ---
 
@@ -124,35 +123,33 @@ agentmine worker done 1
 - **設計原則**: @02-architecture/design-principles.md
 - **DBマスター**: @03-core-concepts/db-master.md
 - **Observable Facts**: @03-core-concepts/observable-facts.md
-- **アーキテクチャ決定**: @10-decisions/ (ADR)
+- **アーキテクチャ決定**: @adr/ (ADR)
 
 ### データ
 
-- **DB戦略**: @04-data/overview.md
-- **スキーマ定義**: @04-data/schema.md
-- **マイグレーション**: @04-data/migrations.md
-- **エクスポート**: @04-data/export-import.md
+- **データモデル**: @data-model.md
+- **スキーマ定義**: @data-model.md
 
 ### 実行
 
 - **Worker起動**: @07-runtime/worker-lifecycle.md
-- **並列実行**: @07-runtime/parallel-execution.md
-- **マージフロー**: @07-runtime/merge-flow.md
-- **セッション**: @05-features/session-log.md
+- **並列実行**: @features/parallel-execution.md
+- **セッション**: @features/session-log.md
 
 ### インターフェース
 
-- **CLI**: @06-interfaces/cli/
-- **MCP**: @06-interfaces/mcp/
-- **Web UI**: @06-interfaces/web/
+- **CLI**: @06-interfaces/cli/overview.md
+- **MCP**: @06-interfaces/mcp/overview.md
+- **Web UI**: @06-interfaces/web/overview.md
 
 ### 機能
 
-- **タスク管理**: @05-features/task-management.md
-- **Agent定義**: @05-features/agent-definition.md
-- **Memory Bank**: @05-features/memory-bank.md
-- **認証**: @05-features/authentication.md
-- **エラーハンドリング**: @05-features/error-handling.md
+- **Agent定義**: @features/agent-system.md
+- **Memory Bank**: @features/memory-bank.md
+- **認証**: @features/authentication.md
+- **エラーハンドリング**: @features/error-handling.md
+- **Git統合**: @features/git-integration.md
+- **Worktreeスコープ**: @features/worktree-scope.md
 
 ---
 
@@ -160,15 +157,15 @@ agentmine worker done 1
 
 | 質問 | ドキュメント |
 |------|-------------|
-| agentmineとは何？ | @01-introduction/overview.md |
-| どうやってインストールする？ | @08-deployment/installation.md |
+| agentmineとは何？ | @architecture.md |
+| どうやってインストールする？ | @implementation-plan.md |
 | Worker起動の仕組みは？ | @07-runtime/worker-lifecycle.md |
-| 並列実行の方法は？ | @07-runtime/parallel-execution.md |
-| Memory Bankとは？ | @05-features/memory-bank.md |
+| 並列実行の方法は？ | @features/parallel-execution.md |
+| Memory Bankとは？ | @features/memory-bank.md |
 | スコープ制御とは？ | @03-core-concepts/scope-control.md |
-| CLIコマンド一覧は？ | @06-interfaces/cli/commands.md |
-| DBスキーマは？ | @04-data/schema.md |
-| 開発環境セットアップは？ | @09-development/getting-started.md |
+| CLIコマンド一覧は？ | @06-interfaces/cli/overview.md |
+| DBスキーマは？ | @data-model.md |
+| 開発環境セットアップは？ | @implementation-plan.md |
 
 ---
 
@@ -184,16 +181,17 @@ agentmine worker done 1
 ### 相対パス表記
 
 ドキュメント内では `@` で始まる相対パスで他ドキュメントを参照：
-- `@02-architecture/overview.md` - docsルートからの相対パス
+- `@architecture.md` - docsルートからの相対パス
 - `@../03-core-concepts/db-master.md` - 現在のディレクトリからの相対パス
+- `@./features/memory-bank.md` - 現在のディレクトリからの相対パス
 
 ---
 
 ## 貢献
 
 ドキュメントの改善提案は大歓迎です：
-- @09-development/contributing.md - コントリビューションガイド
 - Issue/PRで提案してください
+- @README.md - プロジェクト概要
 
 ---
 
@@ -206,4 +204,4 @@ agentmine worker done 1
 
 ---
 
-**次に読むべきドキュメント**: @01-introduction/overview.md
+**次に読むべきドキュメント**: @architecture.md
