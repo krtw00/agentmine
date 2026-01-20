@@ -2,13 +2,13 @@
 
 ## 目的
 
-このドキュメントはagentmineのシステム構成と設計原則を説明する。
+このドキュメントはAgentMineのシステム構成と設計原則を説明する。
 
 ## 背景
 
-agentmineは「並列AI開発の実行環境」であり、「並列実行を計画するAI」ではない。
+AgentMineは「並列AI開発の実行環境」であり、「並列実行を計画するAI」ではない。
 
-**agentmineの責務:**
+**AgentMineの責務:**
 - Workerの隔離環境（worktree）を提供
 - スコープ制御（アクセス可能なファイルの制限）
 - DoD検証（lint/test/build等の品質チェック）
@@ -21,7 +21,7 @@ agentmineは「並列AI開発の実行環境」であり、「並列実行を計
 - 進捗監視とマージ判断
 - 失敗時のリトライ判断
 
-この責務分離により、**計画・判断はOrchestrator、安全装置はagentmine**という役割が明確になる。
+この責務分離により、**計画・判断はOrchestrator、安全装置はAgentMine**という役割が明確になる。
 
 ## 設計原則
 
@@ -51,17 +51,17 @@ Workerは能動的にDBを更新しない。ステータスは観測可能な事
 | ブランチがマージ済み | タスク完了 |
 | プロセスが存在 | 実行中 |
 
-この方式により、Workerとagentmineの結合を避け、並列実行時の競合も発生しない。
+この方式により、WorkerとAgentMineの結合を避け、並列実行時の競合も発生しない。
 
 ### 3. Fail Fast
 
 エラー時は即座に失敗させ、リカバリーはOrchestratorに委ねる。
 
-agentmineは自動リトライやエラー修正を行わない。明確な成功/失敗の状態を記録し、判断はOrchestratorに任せる。
+AgentMineは自動リトライやエラー修正を行わない。明確な成功/失敗の状態を記録し、判断はOrchestratorに任せる。
 
 ### 4. DoD検証の仕組み化
 
-DoD（Definition of Done）検証はagentmineが強制する。Orchestratorの任意ではない。
+DoD（Definition of Done）検証はAgentMineが強制する。Orchestratorの任意ではない。
 
 **なぜ仕組み化するか:**
 - Orchestratorが検証をスキップしても何も起きない、という状況を避ける
@@ -69,7 +69,7 @@ DoD（Definition of Done）検証はagentmineが強制する。Orchestratorの�
 - スコープ制御と同様の「安全装置」として位置づける
 
 **動作:**
-1. Worker完了後、agentmineがDoD検証を自動実行
+1. Worker完了後、AgentMineがDoD検証を自動実行
 2. 失敗したらセッションを`dod_failed`として記録
 3. マージをブロック
 4. 明示的なスキップは`--skip-dod`で可能（自己責任）
@@ -132,7 +132,7 @@ flowchart TB
 
 ### レイヤー説明
 
-**ユーザー層:** agentmineを使う人（人間またはAI）
+**ユーザー層:** AgentMineを使う人（人間またはAI）
 
 **インターフェース層:**
 - Web UI: 人間向け。タスク管理、Worker監視

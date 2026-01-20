@@ -2,11 +2,11 @@
 
 ## 目的
 
-agentmineのインストール手順を定義する。本ドキュメントはインストールのSSoT（Single Source of Truth）である。
+AgentMineのインストール手順を定義する。本ドキュメントはインストールのSSoT（Single Source of Truth）である。
 
 ## 背景
 
-agentmineはCLI、Web UI、MCPサーバーの3コンポーネントで構成される。開発段階ではソースからのビルドが主な導入方法となる。
+AgentMineはCLI、Web UI、MCPサーバーの3コンポーネントで構成される。開発段階ではソースからのビルドが主な導入方法となる。
 
 **なぜソースからのビルドか:**
 - 開発中のためnpmパッケージ未公開
@@ -88,7 +88,7 @@ agentmineはCLI、Web UI、MCPサーバーの3コンポーネントで構成さ�
 
 ### CLI
 
-CLIはagentmineの中核コンポーネント。
+CLIはAgentMineの中核コンポーネント。
 
 | 操作 | 説明 |
 |------|------|
@@ -136,7 +136,7 @@ CLIはagentmineの中核コンポーネント。
 
 ## トラブルシューティング
 
-### agentmine: command not found
+### AgentMine: command not found
 
 | 原因 | 解決策 |
 |------|--------|

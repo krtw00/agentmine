@@ -1,4 +1,4 @@
-# agentmine
+# AgentMine
 
 **Safe Parallel AI Development Environment**
 
@@ -13,7 +13,7 @@
 
 ## 概要
 
-agentmineは、複数のAIエージェントを並列実行するための実行環境である。Git worktreeによる隔離とスコープ制御により、複数のAIが同時に異なるタスクに取り組むことができる。
+AgentMineは、複数のAIエージェントを並列実行するための実行環境である。Git worktreeによる隔離とスコープ制御により、複数のAIが同時に異なるタスクに取り組むことができる。
 
 ### 主な機能
 
@@ -29,16 +29,16 @@ agentmineは、複数のAIエージェントを並列実行するための実行
 
 ## 設計原則
 
-agentmineは以下の6つの設計原則に基づく：
+AgentMineは以下の6つの設計原則に基づく：
 
 1. **Single Source of Truth (DBマスター)**: すべてのデータ（タスク、Agent定義、Memory Bank、設定）はDBで管理
 2. **Collaborative by Design (Redmine的運用)**: チーム全員が同じDBを参照し、リアルタイムで協業
-3. **AI as Orchestrator**: 並列実行の計画・判断はOrchestrator AI、agentmineは実行基盤を提供
+3. **AI as Orchestrator**: 並列実行の計画・判断はOrchestrator AI、AgentMineは実行基盤を提供
 4. **Isolation & Safety**: Worker隔離（worktree）+ スコープ制御（sparse-checkout + chmod）
 5. **Observable & Deterministic**: ステータスはexit code、merge状態等の客観事実で判定
 6. **Fail Fast**: エラーは即座に失敗させ、リカバリーは上位層（Orchestrator）の責務
 
-詳細: [設計原則](./docs/02-architecture/design-principles.md)
+詳細: [アーキテクチャ](./docs/02-architecture/architecture.md)
 
 ---
 
@@ -137,7 +137,7 @@ agentmine worker done 1
 Orchestrator AIに以下のように指示：
 
 ```
-agentmineを使って、タスク #3, #4, #5 を並列で実行してください
+AgentMineを使って、タスク #3, #4, #5 を並列で実行してください
 ```
 
 ---
@@ -245,19 +245,19 @@ pnpm lint
 ### クイックリンク
 
 **初めての方:**
-- [プロジェクト概要](./docs/01-introduction/overview.md) - agentmineの詳細
-- [設計原則](./docs/02-architecture/design-principles.md) - 6つの中核原則
+- [プロジェクト概要](./docs/01-introduction/overview.md) - AgentMineの詳細
+- [アーキテクチャ](./docs/02-architecture/architecture.md) - システム構成と設計原則
 - [Orchestrator/Workerモデル](./docs/03-core-concepts/orchestrator-worker.md) - アーキテクチャの中心概念
 
 **利用者（Orchestrator開発者）:**
 - [Worker起動フロー](./docs/07-runtime/worker-lifecycle.md) - Worker起動から終了まで
-- [CLIコマンド](./docs/06-interfaces/cli/commands.md) - コマンドリファレンス
+- [CLI設計](./docs/06-interfaces/cli/overview.md) - コマンドリファレンス
 - [Memory Bank](./docs/05-features/memory-bank.md) - プロジェクト決定事項の管理
 
-**開発者（agentmine本体を開発）:**
-- [開発環境セットアップ](./docs/09-development/getting-started.md) - 開発を始める
-- [DBスキーマ](./docs/04-data/schema.md) - データモデル
-- [パッケージ構成](./docs/02-architecture/components.md) - モノレポ構造
+**開発者（AgentMine本体を開発）:**
+- [開発ガイド](./docs/09-development/contributing.md) - 開発を始める
+- [データモデル](./docs/04-data/data-model.md) - DBスキーマ
+- [アーキテクチャ](./docs/02-architecture/architecture.md) - パッケージ構成
 
 ---
 

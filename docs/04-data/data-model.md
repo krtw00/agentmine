@@ -2,11 +2,11 @@
 
 ## 目的
 
-agentmineのデータ構造を定義する。本ドキュメントはデータモデルのSSoT（Single Source of Truth）である。
+AgentMineのデータ構造を定義する。本ドキュメントはデータモデルのSSoT（Single Source of Truth）である。
 
 ## 背景
 
-agentmineは「DBマスター」設計を採用する。すべてのデータはDBで管理し、ファイルは必要時にスナップショット出力する。
+AgentMineは「DBマスター」設計を採用する。すべてのデータはDBで管理し、ファイルは必要時にスナップショット出力する。
 
 **なぜDBマスターか:**
 - チーム全員が同じデータを参照できる（Single Source of Truth）
@@ -158,7 +158,7 @@ erDiagram
 
 **設計意図:**
 - exit_codeは観測可能な事実として記録（Workerが能動的に更新しない）
-- dod_resultはagentmineが自動検証した結果
+- dod_resultはAgentMineが自動検証した結果
 - branchとprはセッションごとに管理（タスクではなく）
 
 ### agents

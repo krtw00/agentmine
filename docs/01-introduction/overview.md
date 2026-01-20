@@ -1,14 +1,14 @@
-# agentmine Overview
+# AgentMine Overview
 
 **Safe Parallel AI Development Environment** - 複数AIを同時に、安全に、管理可能に
 
 ## 目的
 
-agentmineの概要を説明する。本ドキュメントはプロジェクト概要のSSoT（Single Source of Truth）である。
+AgentMineの概要を説明する。本ドキュメントはプロジェクト概要のSSoT（Single Source of Truth）である。
 
-## agentmineとは
+## AgentMineとは
 
-agentmineは**並列AI開発の実行環境**。複数のAIエージェントを同時に安全に動かし、チーム全体で協業できる基盤を提供する。
+AgentMineは**並列AI開発の実行環境**。複数のAIエージェントを同時に安全に動かし、チーム全体で協業できる基盤を提供する。
 
 ```mermaid
 flowchart LR
@@ -52,7 +52,7 @@ flowchart LR
 | 人間 | Web UI | タスク管理、Agent定義、Worker監視 |
 | Orchestrator（AI PM） | CLI/MCP | 自動化（Claude Code等） |
 | Worker（AI） | 隔離worktree | コード実装 |
-| agentmine | - | すべてのデータをDB管理（単一真実源） |
+| AgentMine | - | すべてのデータをDB管理（単一真実源） |
 
 ## 対象ユーザー
 
@@ -62,11 +62,11 @@ flowchart LR
 | チーム開発 | 共有PostgreSQLでリアルタイム進捗共有 |
 | Orchestrator（AI PM） | MCP経由でタスク管理・Worker制御 |
 
-## なぜagentmineか
+## なぜAgentMineか
 
 ### 既存ツールとの比較
 
-| 課題 | 従来 | agentmine |
+| 課題 | 従来 | AgentMine |
 |------|------|-----------|
 | 並列実行 | 手動worktree管理 | 自動worktree＆隔離 |
 | 安全性 | 人間が逐一承認 | スコープ制御で自動承認 |
@@ -75,12 +75,12 @@ flowchart LR
 
 ### DevHiveとの関係
 
-agentmineはDevHiveの後継。
+AgentMineはDevHiveの後継。
 
 | ツール | 特徴 |
 |--------|------|
 | DevHive | シンプルな並列AI実行（個人向け） |
-| agentmine | セキュリティ＋チーム協業＋Memory Bank |
+| AgentMine | セキュリティ＋チーム協業＋Memory Bank |
 
 ## 動作フロー
 

@@ -2,15 +2,15 @@
 
 ## 目的
 
-Worker起動から完了までの全フローを定義する。本ドキュメントはagentmineにおけるWorker実行のSSoT（Single Source of Truth）である。
+Worker起動から完了までの全フローを定義する。本ドキュメントはAgentMineにおけるWorker実行のSSoT（Single Source of Truth）である。
 
 ## 背景
 
-agentmineは「並列AI開発の実行環境」であり、Worker（AI）が安全にコードを作成できる隔離環境を提供する。OrchestratorがWorkerを起動し、agentmineがworktree作成・スコープ適用・DoD検証・セッション記録を担当する。
+AgentMineは「並列AI開発の実行環境」であり、Worker（AI）が安全にコードを作成できる隔離環境を提供する。OrchestratorがWorkerを起動し、AgentMineがworktree作成・スコープ適用・DoD検証・セッション記録を担当する。
 
 **責務分離の理由:**
 - Orchestratorは「何を実行するか」を判断する（計画者）
-- agentmineは「安全に実行する」ための仕組みを提供する（実行基盤）
+- AgentMineは「安全に実行する」ための仕組みを提供する（実行基盤）
 - Workerは「コードを書く」ことに集中する（作業者）
 
 ## ライフサイクル概要
@@ -21,24 +21,24 @@ flowchart LR
         direction TB
         P1[Orchestrator: タスク取得]
         P2[Orchestrator: worker run]
-        P3[agentmine: セッション開始]
-        P4[agentmine: ブランチ作成]
-        P5[agentmine: worktree作成]
+        P3[AgentMine: セッション開始]
+        P4[AgentMine: ブランチ作成]
+        P5[AgentMine: worktree作成]
         P1 --> P2 --> P3 --> P4 --> P5
     end
 
     subgraph Phase2["Phase 2: Scope Application"]
         direction TB
-        S1[agentmine: sparse-checkout]
-        S2[agentmine: chmod適用]
-        S3[agentmine: Memory Bank出力]
-        S4[agentmine: クライアント設定出力]
+        S1[AgentMine: sparse-checkout]
+        S2[AgentMine: chmod適用]
+        S3[AgentMine: Memory Bank出力]
+        S4[AgentMine: クライアント設定出力]
         S1 --> S2 --> S3 --> S4
     end
 
     subgraph Phase3["Phase 3: Worker Execution"]
         direction TB
-        W1[agentmine: Worker AI起動]
+        W1[AgentMine: Worker AI起動]
         W2[Worker: コード作成]
         W3[Worker: git commit]
         W4[Worker: 終了]
@@ -47,9 +47,9 @@ flowchart LR
 
     subgraph Phase4["Phase 4: Completion"]
         direction TB
-        C1[agentmine: exit code記録]
-        C2[agentmine: DoD検証]
-        C3[agentmine: ステータス更新]
+        C1[AgentMine: exit code記録]
+        C2[AgentMine: DoD検証]
+        C3[AgentMine: ステータス更新]
         C4[Orchestrator: マージ判断]
         C5[Orchestrator: クリーンアップ]
         C1 --> C2 --> C3 --> C4 --> C5
@@ -91,7 +91,7 @@ Orchestratorが`agentmine worker run`コマンドを実行する。
 
 ### セッション開始
 
-agentmineがセッションをDBに記録する。記録する情報は以下の通り。
+AgentMineがセッションをDBに記録する。記録する情報は以下の通り。
 
 | フィールド | 値 |
 |------------|-----|
@@ -107,7 +107,7 @@ agentmineがセッションをDBに記録する。記録する情報は以下の
 
 ### worktree作成
 
-agentmineがGit worktreeを作成する。
+AgentMineがGit worktreeを作成する。
 
 | 項目 | 値 |
 |------|-----|
@@ -190,7 +190,7 @@ AIクライアント用の設定ファイルを生成する。
 
 ### Worker AI起動
 
-agentmineがworktree内でAIクライアントを起動する。
+AgentMineがworktree内でAIクライアントを起動する。
 
 **対応AIクライアント:**
 
@@ -219,7 +219,7 @@ Workerは以下の作業を行う。
 | 5 | コミット | 必須 |
 
 **Workerの制約:**
-- agentmineコマンド実行不可（DBアクセスなし）
+- AgentMineコマンド実行不可（DBアクセスなし）
 - worktree外のファイルアクセス不可
 - スコープ外のファイル編集不可（物理的に制限）
 
@@ -238,7 +238,7 @@ Workerは作業完了後、exit codeを返して終了する。
 
 ### exit code記録
 
-agentmineがWorkerのexit codeをセッションに記録する。
+AgentMineがWorkerのexit codeをセッションに記録する。
 
 | exit code | session.status |
 |-----------|----------------|
@@ -247,7 +247,7 @@ agentmineがWorkerのexit codeをセッションに記録する。
 
 ### DoD検証
 
-**重要:** DoD（Definition of Done）検証はagentmineが強制実行する。Orchestratorの任意ではない。
+**重要:** DoD（Definition of Done）検証はAgentMineが強制実行する。Orchestratorの任意ではない。
 
 ```mermaid
 flowchart LR
@@ -295,7 +295,7 @@ Orchestratorがマージを実行するか判断する。
 **判断基準:**
 - session.dodResult = passedの場合のみマージ可能
 - コンフリクト発生時はOrchestratorが解決または失敗扱いを判断
-- マージ成功後、agentmineがブランチのマージ状態を検出しタスクをdoneに更新
+- マージ成功後、AgentMineがブランチのマージ状態を検出しタスクをdoneに更新
 
 ### クリーンアップ
 
@@ -358,7 +358,7 @@ Worker起動時に生成するプロンプトの構成要素。
 |------|--------|------|
 | 1 | Orchestrator | タスク取得 |
 | 2 | Orchestrator | worker run --exec |
-| 3 | agentmine | 準備・実行・完了処理 |
+| 3 | AgentMine | 準備・実行・完了処理 |
 | 4 | Orchestrator | マージ実行 |
 | 5 | Orchestrator | worker done |
 

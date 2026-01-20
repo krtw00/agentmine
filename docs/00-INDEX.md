@@ -1,10 +1,10 @@
-# agentmine ドキュメント
+# AgentMine ドキュメント
 
 **Safe Parallel AI Development Environment** - 複数AIを同時に、安全に、管理可能に
 
 ## 目的
 
-agentmineドキュメントのナビゲーションを提供する。本ドキュメントはドキュメント構造のSSoT（Single Source of Truth）である。
+AgentMineドキュメントのナビゲーションを提供する。本ドキュメントはドキュメント構造のSSoT（Single Source of Truth）である。
 
 ## ドキュメント構造
 
@@ -52,7 +52,7 @@ C4モデル + arc42に基づいて階層化。
 
 ### 初めての方
 
-agentmineが何をするものか理解したい：
+AgentMineが何をするものか理解したい：
 
 | 順序 | ドキュメント | 内容 |
 |:----:|------------|------|
@@ -71,9 +71,9 @@ AIを使って開発タスクを自動化したい：
 | 3 | @05-features/memory-bank.md | プロジェクト決定事項の管理 |
 | 4 | @06-interfaces/mcp/overview.md | MCPツール一覧 |
 
-### 開発者（agentmine本体を開発）
+### 開発者（AgentMine本体を開発）
 
-agentmineの機能を実装・拡張したい：
+AgentMineの機能を実装・拡張したい：
 
 | 順序 | ドキュメント | 内容 |
 |:----:|------------|------|
@@ -94,7 +94,7 @@ agentmineの機能を実装・拡張したい：
 
 | ファイル | 内容 |
 |---------|------|
-| overview.md | agentmineの概要、Core Value、動作フロー |
+| overview.md | AgentMineの概要、Core Value、動作フロー |
 
 ### 02-architecture
 
@@ -215,7 +215,7 @@ agentmineの機能を実装・拡張したい：
 
 | 質問 | ドキュメント |
 |------|-------------|
-| agentmineとは何？ | @01-introduction/overview.md |
+| AgentMineとは何？ | @01-introduction/overview.md |
 | どうやってインストールする？ | @08-deployment/installation.md |
 | Worker起動の仕組みは？ | @07-runtime/worker-lifecycle.md |
 | Memory Bankとは？ | @05-features/memory-bank.md |

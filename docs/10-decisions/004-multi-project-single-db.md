@@ -6,7 +6,7 @@
 
 ## コンテキスト
 
-agentmineで複数のGitHubリポジトリ（プロジェクト）を管理する際のアーキテクチャを決定する必要がある。
+AgentMineで複数のGitHubリポジトリ（プロジェクト）を管理する際のアーキテクチャを決定する必要がある。
 
 ### 検討した選択肢
 
@@ -51,12 +51,12 @@ agentmineで複数のGitHubリポジトリ（プロジェクト）を管理す�
 
 ### 2. Redmine的運用との整合性
 
-agentmineの設計思想「Redmine的運用」に合致：
+AgentMineの設計思想「Redmine的運用」に合致：
 
 | ツール | 構成 |
 |--------|------|
 | Redmine | 1インスタンス = 複数プロジェクト |
-| agentmine | 1DB = 複数プロジェクト |
+| AgentMine | 1DB = 複数プロジェクト |
 
 ### 3. SQLite/PostgreSQL両対応
 

@@ -6,7 +6,7 @@ agentmine CLIの設計を定義する。本ドキュメントはCLI設計のSSoT
 
 ## 背景
 
-agentmineは3つのインターフェース（CLI、MCP、Web UI）を提供する。CLIはOrchestratorとスクリプト向け。人間はWeb UIを使用する。
+AgentMineは3つのインターフェース（CLI、MCP、Web UI）を提供する。CLIはOrchestratorとスクリプト向け。人間はWeb UIを使用する。
 
 **なぜCLIがOrchestratorAI専用か:**
 - 繰り返し処理はスクリプト化すべき → Orchestratorが担当

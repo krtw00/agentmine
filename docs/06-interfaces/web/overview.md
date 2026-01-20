@@ -6,7 +6,7 @@
 
 ## 背景
 
-agentmineはOrchestrator/Workerモデルを採用しており、OrchestratorはAI（CLI/MCP経由）と人間（Web UI経由）の両方が担うことができる。人間がOrchestratorとして機能するためには、CLIを使わずにすべての操作を完結できるインターフェースが必要。
+AgentMineはOrchestrator/Workerモデルを採用しており、OrchestratorはAI（CLI/MCP経由）と人間（Web UI経由）の両方が担うことができる。人間がOrchestratorとして機能するためには、CLIを使わずにすべての操作を完結できるインターフェースが必要。
 
 **なぜCLI不要を目指すか:**
 - 人間はGUIの方が直感的に操作できる

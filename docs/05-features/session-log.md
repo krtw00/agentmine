@@ -81,7 +81,7 @@ stateDiagram-v2
 | enabled | false | 自動削除の有効/無効 |
 | days | 90 | 保持日数（有効時） |
 
-**方針:** 各プロジェクトの設定に委ねる。agentmineでデフォルトは決めない。
+**方針:** 各プロジェクトの設定に委ねる。AgentMineでデフォルトは決めない。
 
 ## 用途
 
@@ -106,9 +106,9 @@ stateDiagram-v2
 
 | 役割 | 責務 |
 |------|------|
-| agentmine | セッション情報の永続化（sessionsテーブル） |
-| agentmine | セッション一覧・詳細の提供（CLI, MCP, Web UI） |
-| agentmine | 古いセッションの自動クリーンアップ（設定時） |
+| AgentMine | セッション情報の永続化（sessionsテーブル） |
+| AgentMine | セッション一覧・詳細の提供（CLI, MCP, Web UI） |
+| AgentMine | 古いセッションの自動クリーンアップ（設定時） |
 | Orchestrator | 通常は agentmine worker run で開始 |
 | Orchestrator | agentmine worker done で終了・クリーンアップ |
 | Orchestrator | 詳細記録が必要なら session end で追記 |

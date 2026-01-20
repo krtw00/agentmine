@@ -6,7 +6,7 @@ Model Context Protocol (MCP) によるエディタ連携を提供する。本ド
 
 ## 背景
 
-Cursor、Windsurf、Claude Desktop等のMCP対応クライアントからagentmineを操作可能にする。OrchestratorがエディタからWorkerを起動できる。
+Cursor、Windsurf、Claude Desktop等のMCP対応クライアントからAgentMineを操作可能にする。OrchestratorがエディタからWorkerを起動できる。
 
 **なぜCLIラッパーか:**
 - CLIとMCPで二重実装を避ける
@@ -22,7 +22,7 @@ MCPは独自実装ではなく、CLIコマンドのラッパーとして動作�
 ```mermaid
 sequenceDiagram
     participant Client as MCP Client<br/>(Cursor等)
-    participant Server as MCP Server<br/>(agentmine)
+    participant Server as MCP Server<br/>(AgentMine)
     participant CLI as agentmine CLI
 
     Client->>Server: initialize
@@ -41,7 +41,7 @@ sequenceDiagram
 
 | 項目 | 値 |
 |------|-----|
-| command | agentmine |
+| command | AgentMine |
 | args | ["mcp", "serve"] |
 | cwd | /path/to/project |
 

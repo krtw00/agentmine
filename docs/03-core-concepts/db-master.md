@@ -2,11 +2,11 @@
 
 ## 目的
 
-agentmineのデータ管理戦略を定義する。本ドキュメントはDBマスター方式のSSoT（Single Source of Truth）である。
+AgentMineのデータ管理戦略を定義する。本ドキュメントはDBマスター方式のSSoT（Single Source of Truth）である。
 
 ## 背景
 
-agentmineは複数のインターフェース（Web UI、CLI、MCP）からアクセスされる。データの一貫性を保つには、単一のマスターデータソースが必要。
+AgentMineは複数のインターフェース（Web UI、CLI、MCP）からアクセスされる。データの一貫性を保つには、単一のマスターデータソースが必要。
 
 **なぜDBマスターか:**
 - チーム全員が同じデータを参照できる

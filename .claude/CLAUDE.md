@@ -1,10 +1,10 @@
-# agentmine
+# AgentMine
 
 **Safe Parallel AI Development Environment** - 複数AIを同時に、安全に、管理可能に
 
 ## プロジェクト概要
 
-agentmineは**並列AI開発の実行環境**。Redmine的運用でチーム協業をサポート。
+AgentMineは**並列AI開発の実行環境**。Redmine的運用でチーム協業をサポート。
 
 ### Core Value
 
@@ -75,7 +75,7 @@ pnpm lint         # リント
 
 1. **Single Source of Truth (DBマスター)**: すべてのデータ（タスク、Agent、Memory、設定）はDBで管理
 2. **Collaborative by Design (Redmine的運用)**: チーム全員が同じDBを参照、リアルタイム協業
-3. **AI as Orchestrator**: 計画・判断はAI、agentmineは実行基盤・記録・提供のみ担当
+3. **AI as Orchestrator**: 計画・判断はAI、AgentMineは実行基盤・記録・提供のみ担当
 4. **Isolation & Safety**: Worker隔離（worktree） + スコープ制御（sparse-checkout + chmod）
 5. **Observable & Deterministic**: ステータスはexit code, merge状態等の客観事実で判定
 6. **Fail Fast**: エラーは即座に失敗させ、リカバリーは上位層（Orchestrator）の責務

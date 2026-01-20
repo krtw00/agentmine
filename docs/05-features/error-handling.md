@@ -2,7 +2,7 @@
 
 ## 目的
 
-agentmineのエラー処理とリカバリー戦略を定義する。本ドキュメントはエラーハンドリングのSSoT（Single Source of Truth）である。
+AgentMineのエラー処理とリカバリー戦略を定義する。本ドキュメントはエラーハンドリングのSSoT（Single Source of Truth）である。
 
 ## 背景
 
@@ -15,7 +15,7 @@ agentmineのエラー処理とリカバリー戦略を定義する。本ドキ�
 
 ## 設計原則
 
-agentmineはエラー情報を記録・提供する。リカバリー判断はOrchestratorの責務。
+AgentMineはエラー情報を記録・提供する。リカバリー判断はOrchestratorの責務。
 
 ## エラー分類
 
@@ -135,11 +135,11 @@ Orchestratorが明示的にリトライを指示する。
 
 | 役割 | 責務 |
 |------|------|
-| agentmine | エラー情報の記録（task_errorsテーブル） |
-| agentmine | エラー一覧・詳細の提供（CLI, MCP） |
-| agentmine | 設定に基づくリトライ判定情報の提供 |
+| AgentMine | エラー情報の記録（task_errorsテーブル） |
+| AgentMine | エラー一覧・詳細の提供（CLI, MCP） |
+| AgentMine | 設定に基づくリトライ判定情報の提供 |
 | Orchestrator | Workerのエラー検知（終了コード、出力確認） |
-| Orchestrator | リトライ判断（agentmineの設定を参照） |
+| Orchestrator | リトライ判断（AgentMineの設定を参照） |
 | Orchestrator | session end時のエラー記録 |
 | Orchestrator | 人間への通知・エスカレーション |
 

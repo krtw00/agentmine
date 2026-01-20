@@ -2,7 +2,7 @@
 
 ## 目的
 
-agentmineの中核アーキテクチャパターンを定義する。本ドキュメントはOrchestrator/WorkerモデルのSSoT（Single Source of Truth）である。
+AgentMineの中核アーキテクチャパターンを定義する。本ドキュメントはOrchestrator/WorkerモデルのSSoT（Single Source of Truth）である。
 
 ## 背景
 
@@ -23,7 +23,7 @@ flowchart LR
         O1[計画・監視・判断]
     end
 
-    subgraph agentmine["agentmine"]
+    subgraph AgentMine["agentmine"]
         DB[(DB)]
     end
 
@@ -33,9 +33,9 @@ flowchart LR
         W3[Worker 3]
     end
 
-    Orchestrator <--> agentmine
-    agentmine --> Workers
-    Workers -->|exit code| agentmine
+    Orchestrator <--> AgentMine
+    AgentMine --> Workers
+    Workers -->|exit code| AgentMine
 ```
 
 ## 役割定義
@@ -77,7 +77,7 @@ flowchart LR
 |------|------|
 | 隔離 | 専用worktreeで作業 |
 | スコープ制御 | アクセス可能なファイルが制限 |
-| 非接続 | agentmineにアクセスしない |
+| 非接続 | AgentMineにアクセスしない |
 | 自動承認 | 自動承認モードで実行 |
 
 **責務:**
@@ -97,7 +97,7 @@ flowchart LR
 | マージ判断 | Orchestratorの仕事 |
 | agentmine CLI実行 | 隔離されている |
 
-### agentmine
+### AgentMine
 
 | 項目 | 内容 |
 |------|------|
@@ -125,12 +125,12 @@ flowchart LR
 
 ## 通信フロー
 
-### Orchestrator → agentmine → Worker
+### Orchestrator → AgentMine → Worker
 
 ```mermaid
 sequenceDiagram
     participant O as Orchestrator
-    participant A as agentmine
+    participant A as AgentMine
     participant W as Worker
 
     O->>A: worker run --exec --detach
@@ -150,7 +150,7 @@ sequenceDiagram
 
 | 観点 | 説明 |
 |------|------|
-| agentmineアクセス | 不可 |
+| AgentMineアクセス | 不可 |
 | 他Workerとの通信 | 不可 |
 | 情報伝達 | exit codeのみ |
 
@@ -160,10 +160,10 @@ sequenceDiagram
 |------|--------|------|
 | 1 | Orchestrator | タスク取得（agentmine task list） |
 | 2 | Orchestrator | Worker並列起動（worker run --exec --detach） |
-| 3 | agentmine | worktree作成、スコープ適用、Worker起動 |
+| 3 | AgentMine | worktree作成、スコープ適用、Worker起動 |
 | 4 | Worker | コード作成、テスト追加、コミット |
 | 5 | Orchestrator | 完了待ち（worker wait） |
-| 6 | agentmine | DoD検証（lint/test/build）、結果をDBに記録 |
+| 6 | AgentMine | DoD検証（lint/test/build）、結果をDBに記録 |
 | 7 | Orchestrator | DoD結果を確認、マージ判断・実行 |
 | 8 | Orchestrator | 完了処理（worker done） |
 
@@ -198,7 +198,7 @@ sequenceDiagram
 | 質問 | 回答 |
 |------|------|
 | Workerは他Workerと通信できる？ | いいえ。調整はOrchestratorが行う |
-| Workerが失敗したら？ | agentmineがfailedを記録、Orchestratorがリトライ判断 |
+| Workerが失敗したら？ | AgentMineがfailedを記録、Orchestratorがリトライ判断 |
 | Orchestratorは人間でもよい？ | はい。CLIを手動実行してもOK |
 | Web UIはどの役割？ | 人間用インターフェース。Orchestrator的判断はしない |
 

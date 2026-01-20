@@ -75,7 +75,7 @@ Prismaも有力候補だったが：
 | 起動時間 | クエリエンジンの初期化が遅い |
 | サイズ | node_modulesが大きい |
 
-agentmineはCLIツールなので、軽量性を重視してDrizzleを選択。
+AgentMineはCLIツールなので、軽量性を重視してDrizzleを選択。
 
 ## 結果
 

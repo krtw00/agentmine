@@ -27,7 +27,7 @@ flowchart TB
         O1[計画・判断]
     end
 
-    subgraph agentmine["agentmine"]
+    subgraph AgentMine["agentmine"]
         DB[(agents テーブル)]
     end
 
@@ -36,8 +36,8 @@ flowchart TB
     end
 
     Human --> Orchestrator
-    Orchestrator --> agentmine
-    agentmine --> Worker
+    Orchestrator --> AgentMine
+    AgentMine --> Worker
 ```
 
 | 役割 | 説明 | 例 |
