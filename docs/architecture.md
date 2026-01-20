@@ -24,13 +24,12 @@
 
 ### 重要な設計原則
 
-1. **DBマスター**: すべてのデータ（タスク、Agent、Memory、設定）はDBで管理
-2. **Redmine的運用**: チーム全員が同じDBを参照、リアルタイム協業
-3. **Worker隔離**: Workerは隔離されたworktreeで作業、DB直接アクセスなし
-4. **スコープ制御**: sparse-checkout + chmodで物理的にファイルアクセスを制限
-5. **非対話Worker**: Workerは自動承認モードで動作（--dangerously-skip-permissions等）
-6. **Observable Facts**: ステータスはexit code, merge状態等の客観事実で判定
-7. **Explicit Opt-in**: 自動注入/自動実行などは明示的に有効化された場合のみ動作
+1. **Single Source of Truth (DBマスター)**: すべてのデータ（タスク、Agent、Memory、設定）はDBで管理
+2. **Collaborative by Design (Redmine的運用)**: チーム全員が同じDBを参照、リアルタイム協業
+3. **AI as Orchestrator**: 計画・判断はAI、agentmineは実行基盤・記録・提供のみ担当
+4. **Isolation & Safety**: Worker隔離（worktree） + スコープ制御（sparse-checkout + chmod）
+5. **Observable & Deterministic**: ステータスはexit code, merge状態等の客観事実で判定
+6. **Fail Fast**: エラーは即座に失敗させ、リカバリーは上位層（Orchestrator）の責務
 
 ## System Overview
 
