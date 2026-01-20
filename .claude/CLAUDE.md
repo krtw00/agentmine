@@ -122,22 +122,29 @@ agentmine worker done 1      # 完了・クリーンアップ
 4. セッション開始
 5. Worker AI起動（--detachでバックグラウンド）
 
+## 外部AIエージェント使用時の注意
+
+Gemini/Codex等の外部AIにレビュー・実装を依頼する場合：
+
+**レビュー依頼**: `--sandbox read-only`または`--approval-mode default`を必ず指定
+**実装依頼**: 専用worktree（`.agentmine/worktrees/`）で実行し、検証後にマージ
+
+```bash
+# ❌ 危険（予期せぬ変更が直接反映される）
+gemini -y "レビューして改善してください"
+
+# ✅ 安全（読み取り専用）
+gemini --approval-mode default "レビューして改善提案を出力してください"
+
+# ✅ 安全（worktree隔離）
+git worktree add .agentmine/worktrees/review main
+cd .agentmine/worktrees/review && gemini -y "実装タスク"
+```
+
 ## 詳細ドキュメント
 
-### 設計情報
-- @.claude/DESIGN-CHANGES.md - **設計変更サマリー（Codexとの協議による更新）**
-- @.claude/REVIEW-FINDINGS.md - **Codexによる詳細レビュー（矛盾点40項目）**
-- @docs/architecture.md - システムアーキテクチャ
-- @docs/data-model.md - データモデル
-
-### 機能設計
-- @docs/features/agent-system.md - エージェント定義
-- @docs/features/agent-execution.md - 実行フロー
-- @docs/features/memory-bank.md - Memory Bank
-- @docs/features/worktree-scope.md - スコープ制御
-- @docs/features/parallel-execution.md - 並列実行
-- @docs/features/session-log.md - セッション記録
-
-### CLI・MCP
-- @docs/cli-design.md - CLIコマンド設計
-- @docs/features/mcp-integration.md - MCP連携
+- @docs/00-INDEX.md - **ドキュメント全体ナビゲーション**
+- @docs/02-architecture/architecture.md - システムアーキテクチャ
+- @docs/07-runtime/worker-lifecycle.md - Worker実行フロー（SSOT）
+- @docs/05-features/ - 機能詳細（Agent, Memory Bank, 並列実行等）
+- @docs/06-interfaces/ - CLI/MCP/Web UI設計
