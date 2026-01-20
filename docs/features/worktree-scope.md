@@ -22,7 +22,7 @@ Workerが作業する際、専用のworktreeを作成し、スコープに基づ
 │                                                                  │
 │  【Orchestratorの役割】                                          │
 │  - `agentmine worker run` の実行                                │
-│  - 事後チェック（必要に応じてgit diffで検証）                   │
+│  - 事後チェック結果の参照（差分はagentmineが自動収集）          │
 │  - 結果判断（マージ/失敗など）                                   │
 │                                                                  │
 ├─────────────────────────────────────────────────────────────────┤
@@ -30,7 +30,7 @@ Workerが作業する際、専用のworktreeを作成し、スコープに基づ
 │  - exclude: sparse-checkoutで物理的に除外（存在しない）          │
 │  - write: 明示的に指定されたファイルのみ編集可能                 │
 │  - read: writeに含まれないファイルは参照のみ                     │
-│  - 事後チェック: git diffでスコープ違反を検出                    │
+│  - 事後チェック: agentmineがgit diffでスコープ違反を検出         │
 ├─────────────────────────────────────────────────────────────────┤
 │  【将来（レベル2）】                                              │
 │  - Docker隔離による完全なアクセス制御                            │
@@ -178,10 +178,10 @@ async function applySparseCheckout(
 
 ## 事後チェック（Verify）
 
-Workerが作業完了後、必要に応じてworktree内でgit diffを使いスコープ違反をチェック:
+agentmineはWorker完了時にworktree内でgit diffを実行し、変更ファイル一覧を自動収集してスコープ違反を検出する。フルパッチは明示的オプションでのみ取得する。
 
 ```bash
-# 必要に応じて実行
+# agentmine内部処理
 cd .agentmine/worktrees/task-5
 git diff --name-only HEAD
 git diff --name-only --cached

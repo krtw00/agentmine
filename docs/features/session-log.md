@@ -102,7 +102,7 @@ export const sessions = sqliteTable('sessions', {
 
   // 成果物（変更されたファイルパスの配列）
   // パス形式: worktreeルートからの相対パス（例: "src/auth.ts"）
-  // Orchestratorがworktree内でgit diffから収集
+  // agentmineがWorker完了時にgit diffから自動収集
   artifacts: text('artifacts', { mode: 'json' })
     .$type<string[]>()
     .default([]),
@@ -119,6 +119,8 @@ interface SessionError {
   details?: Record<string, any>;
 }
 ```
+
+**Note:** フルパッチはセッションに保存しない。必要時は明示的オプションで取得する。
 
 ## 保存と閲覧
 

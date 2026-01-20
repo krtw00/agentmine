@@ -1115,7 +1115,7 @@ Orchestrator: [MCP call: worker_run(taskId: 1, exec: true)]
 | 並列制御 | ✓ `worker wait` | - |
 | Agent編集 | - | ✓ UI/YAMLエディタ |
 | Memory編集 | ✓ `memory add/edit` | ✓ Markdownエディタ |
-| 差分確認 | ✓ `git diff` | ✓ ビジュアル差分 |
+| 差分確認 | ✓ `session show`（差分サマリ） | ✓ ビジュアル差分 |
 
 **原則:**
 - **自動化・並列制御** → CLI（Orchestrator）
