@@ -86,17 +86,16 @@ pnpm lint         # リント
 |--------|--------|--------------|
 | タスク | DB (tasks) | - |
 | セッション | DB (sessions) | - |
-| Agent定義 | DB (agents) | .agentmine-worker/agent.yaml |
-| Memory Bank | DB (memories) | .agentmine-worker/memory/ |
+| Agent定義 | DB (agents) | - |
+| Memory Bank | DB (memories) | worktree/.agentmine/memory/ |
 | 設定 | DB (settings) | - |
 | 監査ログ | DB (audit_logs) | - |
 
 ```
 Worker起動時:
-DB → worktree/.agentmine-worker/ へファイル出力
-     ├── agent.yaml
-     ├── prompt.md
-     └── memory/
+1. DB → worktree/.agentmine/memory/ へMemory Bankスナップショット出力（read-only）
+2. promptContent + Memory Bank要約 + タスクをAIクライアント設定ファイルへ出力
+   例: worktree/.claude/CLAUDE.md（claude-code用）
 ```
 
 ## Worker実行フロー
@@ -125,9 +124,20 @@ agentmine worker done 1      # 完了・クリーンアップ
 
 ## 詳細ドキュメント
 
+### 設計情報
+- @.claude/DESIGN-CHANGES.md - **設計変更サマリー（Codexとの協議による更新）**
+- @.claude/REVIEW-FINDINGS.md - **Codexによる詳細レビュー（矛盾点40項目）**
 - @docs/architecture.md - システムアーキテクチャ
 - @docs/data-model.md - データモデル
-- @docs/cli-design.md - CLIコマンド設計
+
+### 機能設計
 - @docs/features/agent-system.md - エージェント定義
 - @docs/features/agent-execution.md - 実行フロー
+- @docs/features/memory-bank.md - Memory Bank
+- @docs/features/worktree-scope.md - スコープ制御
+- @docs/features/parallel-execution.md - 並列実行
+- @docs/features/session-log.md - セッション記録
+
+### CLI・MCP
+- @docs/cli-design.md - CLIコマンド設計
 - @docs/features/mcp-integration.md - MCP連携
