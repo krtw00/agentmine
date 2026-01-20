@@ -41,18 +41,18 @@ Worker起動時やエクスポート時に、DBからスナップショットを
 ```
 .agentmine/memory/           # DBから生成されるスナップショット
 ├── architecture/           # アーキテクチャ決定
-│   ├── database-selection.md
-│   └── monorepo.md
+│   ├── 1.md
+│   └── 2.md
 ├── tooling/                # ツール選定
-│   ├── test-framework.md
-│   └── linter.md
+│   ├── 3.md
+│   └── 4.md
 ├── convention/             # 規約
-│   └── commit-format.md
+│   └── 5.md
 └── rule/                   # ルール（必須事項）
-    └── test-required.md
+    └── 6.md
 ```
 
-ファイル名は `memory.id`（slug）を使用する。
+ファイル名は `memory.id` を使用する（整数値のファイル名、例: `1.md`, `2.md`）。
 
 ## ファイル形式
 
@@ -60,7 +60,7 @@ Worker起動時やエクスポート時に、DBからスナップショットを
 
 ```markdown
 ---
-id: database-selection
+id: 1
 title: データベース選定
 category: architecture
 summary: PostgreSQL（本番）/ SQLite（ローカル）
@@ -82,7 +82,7 @@ PostgreSQL（本番）、SQLite（ローカル）
 - Drizzle ORMで両方をサポート可能
 ```
 
-**必須:** `id`（slug）, `title`, `category`  
+**必須:** `id`（整数）, `title`, `category`
 **推奨:** `summary`  
 **status:** 省略時は `draft`（注入OFF）。`active` のみ注入対象。
 
@@ -133,9 +133,9 @@ PostgreSQL（本番）、SQLite（ローカル）
 
 ## Project Context (Memory Bank)
 The following project context files are available:
-- .agentmine/memory/architecture/database-selection.md - データベース選定
-- .agentmine/memory/tooling/test-framework.md - テストフレームワーク
-- .agentmine/memory/rule/test-required.md - テスト必須
+- .agentmine/memory/architecture/1.md - データベース選定
+- .agentmine/memory/tooling/3.md - テストフレームワーク
+- .agentmine/memory/rule/6.md - テスト必須
 
 Read these files in .agentmine/memory/ for details.
 
@@ -154,9 +154,8 @@ agentmine memory list
 agentmine memory list --category architecture
 agentmine memory list --status active
 
-# 決定事項追加（DBに保存）
+# 決定事項追加（DBに保存、idは自動採番）
 agentmine memory add \
-  --id test-framework \
   --category tooling \
   --title "テストフレームワーク" \
   --summary "Vitest（高速・Vite互換）" \
@@ -189,12 +188,12 @@ export class MemoryService {
     category?: string;
     status?: MemoryStatus;
   }): Promise<MemoryRecord[]>;
-  async getMemory(id: string): Promise<MemoryRecord | null>;
+  async getMemory(id: number): Promise<MemoryRecord | null>;
 
   // DB書き込み
   async addMemory(input: NewMemory): Promise<MemoryRecord>;
-  async updateMemory(id: string, input: UpdateMemory): Promise<MemoryRecord>;
-  async removeMemory(id: string): Promise<void>;
+  async updateMemory(id: number, input: UpdateMemory): Promise<MemoryRecord>;
+  async removeMemory(id: number): Promise<void>;
 
   // コンテキスト生成
   async buildContext(): Promise<string>;
@@ -207,12 +206,14 @@ export class MemoryService {
 type MemoryStatus = 'draft' | 'active' | 'archived';
 
 interface MemoryRecord {
-  id: string;
+  id: number;
   category: string;
   title: string;
   summary?: string;
   status: MemoryStatus;
   content: string;
+  tags?: string[];
+  relatedTaskId?: number;
   created: Date;
   updated?: Date;
 }
@@ -240,11 +241,10 @@ interface MemoryRecord {
 // MCP Tool: memory_add
 {
   name: "memory_add",
-  description: "Add a Memory Bank entry (DB)",
+  description: "Add a Memory Bank entry (DB, id is auto-generated)",
   inputSchema: {
     type: "object",
     properties: {
-      id: { type: "string", required: true },
       category: { type: "string", required: true },
       title: { type: "string", required: true },
       summary: { type: "string" },
@@ -253,6 +253,8 @@ interface MemoryRecord {
         enum: ["draft", "active", "archived"]
       },
       content: { type: "string" },
+      tags: { type: "array", items: { type: "string" } },
+      relatedTaskId: { type: "number" },
     },
   },
 }

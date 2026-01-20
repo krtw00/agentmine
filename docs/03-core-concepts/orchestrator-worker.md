@@ -205,8 +205,8 @@ Workerは与えられたプロンプト（promptContent + Memory Bank + タス�
 
 ## Project Context (Memory Bank)
 The following project context files are available:
-- .agentmine/memory/architecture/database-selection.md
-- .agentmine/memory/tooling/test-framework.md
+- .agentmine/memory/architecture/1.md
+- .agentmine/memory/tooling/2.md
 
 ## タスク
 **ログイン機能を実装**

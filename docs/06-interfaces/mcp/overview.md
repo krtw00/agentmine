@@ -499,7 +499,7 @@ AIに渡されるコンテキストをプレビュー。
 
 // Response
 {
-  context: "## Memory Bank Summary\n- ルール: バグ修正時は必ず回帰テストを追加\n\n## Project Context (Memory Bank)\n- .agentmine/memory/rule/test-required.md - テスト必須\n\nRead these files in .agentmine/memory/ for details."
+  context: "## Memory Bank Summary\n- ルール: バグ修正時は必ず回帰テストを追加\n\n## Project Context (Memory Bank)\n- .agentmine/memory/rule/6.md - テスト必須\n\nRead these files in .agentmine/memory/ for details."
 }
 ```
 
@@ -525,8 +525,8 @@ Memory Bankの内容。
 - アーキテクチャ: DBはPostgreSQL（本番）/ SQLite（ローカル）
 
 ## Project Context (Memory Bank)
-- .agentmine/memory/architecture/database-selection.md - データベース選定
-- .agentmine/memory/rule/test-required.md - テスト必須
+- .agentmine/memory/architecture/1.md - データベース選定
+- .agentmine/memory/rule/6.md - テスト必須
 
 Read these files in .agentmine/memory/ for details.
 `
