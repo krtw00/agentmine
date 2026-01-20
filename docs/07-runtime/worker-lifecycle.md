@@ -155,9 +155,9 @@ git worktree add .agentmine/worktrees/task-5 task-5-s123
     └── .agentmine/             # Worker用データ（read-only）
         └── memory/             # Memory Bankスナップショット
             ├── architecture/
-            │   └── database-selection.md
+            │   └── 1.md
             └── tooling/
-                └── test-framework.md
+                └── 2.md
 ```
 
 ---
@@ -242,11 +242,11 @@ mkdir -p .agentmine/memory
 ```
 .agentmine/memory/
 ├── architecture/
-│   └── database-selection.md
+│   └── 1.md
 ├── conventions/
-│   └── commit-format.md
+│   └── 5.md
 └── tooling/
-    └── test-framework.md
+    └── 2.md
 ```
 
 **注意**: `.agentmine/memory/`は読み取り専用。Workerがこれらを編集することはない。
@@ -274,8 +274,8 @@ POST /api/login でJWTトークンを返すAPIを実装してください。
 
 ## Project Context (Memory Bank)
 The following project context files are available:
-- .agentmine/memory/architecture/database-selection.md
-- .agentmine/memory/conventions/commit-format.md
+- .agentmine/memory/architecture/1.md
+- .agentmine/memory/conventions/5.md
 
 Read these files for details.
 EOF

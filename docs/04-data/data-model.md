@@ -44,22 +44,24 @@ Drizzle ORMにより、両DBで共通のクエリAPIを使用。
 ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
 │      Task       │  │     Agent       │  │     Memory      │
 ├─────────────────┤  ├─────────────────┤  ├─────────────────┤
-│ id          PK  │  │ id          PK  │  │ id (slug)  PK  │
+│ id          PK  │  │ id          PK  │  │ id          PK  │
 │ project_id  FK  │  │ project_id  FK  │  │ project_id  FK  │
 │ parent_id   FK  │  │ name            │  │ category        │
 │ title           │  │ description     │  │ title           │
 │ description     │  │ client          │  │ summary         │
 │ status          │  │ model           │  │ content         │
 │ priority        │  │ scope       {}  │  │ status          │
-│ type            │  │ config      {}  │  │ version         │
-│ assignee_type   │  │ prompt_content  │  │ created_by      │
-│ assignee_name   │  │ version         │  │ created_at      │
-│ selected_session│  │ created_by      │  │ updated_at      │
-│ labels      []  │  │ created_at      │  └────────┬────────┘
-│ complexity      │  │ updated_at      │           ▼
-│ created_at      │  └────────┬────────┘  ┌─────────────────┐
-│ updated_at      │           │           │ MemoryHistory   │
-└────────┬────────┘           ▼           ├─────────────────┤
+│ type            │  │ config      {}  │  │ tags        []  │
+│ assignee_type   │  │ prompt_content  │  │ related_task_id │
+│ assignee_name   │  │ version         │  │ version         │
+│ selected_session│  │ created_by      │  │ created_by      │
+│ labels      []  │  │ created_at      │  │ created_at      │
+│ complexity      │  │ updated_at      │  │ updated_at      │
+│ created_at      │  └────────┬────────┘  └────────┬────────┘
+│ updated_at      │           │                    ▼
+└────────┬────────┘           ▼           ┌─────────────────┐
+         │           ┌─────────────────┐  │ MemoryHistory   │
+         ▼           │  AgentHistory   │  ├─────────────────┤
          │           ┌─────────────────┐  │ id          PK  │
          ▼           │  AgentHistory   │  │ memory_id   FK  │
 ┌─────────────────┐  ├─────────────────┤  │ snapshot    {}  │
@@ -242,7 +244,7 @@ export const agentHistory = sqliteTable('agent_history', {
 
 ```typescript
 export const memories = sqliteTable('memories', {
-  id: text('id').primaryKey(), // slug
+  id: integer('id').primaryKey({ autoIncrement: true }),
   projectId: integer('project_id').references(() => projects.id),
 
   category: text('category').notNull(),
@@ -251,7 +253,14 @@ export const memories = sqliteTable('memories', {
   content: text('content').notNull(), // Markdown
   status: text('status', {
     enum: ['draft', 'active', 'archived']
-  }).notNull().default('draft'),
+  }).notNull().default('active'),
+
+  // メタデータ
+  tags: text('tags', { mode: 'json' })
+    .$type<string[]>()
+    .default([]),
+
+  relatedTaskId: integer('related_task_id').references(() => tasks.id),
 
   // バージョン管理
   version: integer('version').notNull().default(1),
@@ -271,18 +280,19 @@ export const memories = sqliteTable('memories', {
 ```typescript
 export const memoryHistory = sqliteTable('memory_history', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  memoryId: text('memory_id')
+  memoryId: integer('memory_id')
     .references(() => memories.id)
     .notNull(),
 
   snapshot: text('snapshot', { mode: 'json' })
     .$type<{
-      id: string;
+      id: number;
       category: string;
       title: string;
       summary?: string;
       content: string;
       status: 'draft' | 'active' | 'archived';
+      tags?: string[];
     }>()
     .notNull(), // 変更前のスナップショット
   version: integer('version').notNull(),
@@ -557,7 +567,18 @@ export const memories = pgTable('memories', {
 
   category: text('category').notNull(),
   title: text('title').notNull(),
+  summary: text('summary'),
   content: text('content').notNull(),
+  status: text('status', {
+    enum: ['draft', 'active', 'archived']
+  }).notNull().default('active'),
+
+  // メタデータ
+  tags: text('tags', { mode: 'json' })
+    .$type<string[]>()
+    .default([]),
+
+  relatedTaskId: integer('related_task_id').references(() => tasks.id),
 
   // ベクトル埋め込み（セマンティック検索用）
   embedding: vector('embedding', { dimensions: 1536 }),
@@ -629,8 +650,8 @@ agentmine memory export --output ./memory/
 │   └── reviewer.yaml
 ├── memory/
 │   ├── architecture/
-│   │   └── 001-monorepo.md
+│   │   └── 1.md
 │   └── tooling/
-│       └── 001-vitest.md
+│       └── 2.md
 └── settings.yaml
 ```

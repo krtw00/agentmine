@@ -169,9 +169,9 @@ Worker起動時のみファイル出力:
          ▼
    worktree/.agentmine/memory/
    ├── architecture/
-   │   └── database-selection.md
+   │   └── 1.md
    └── tooling/
-       └── test-framework.md
+       └── 2.md
 ```
 
 ---
@@ -223,9 +223,9 @@ agentmine memory export --output ./memory/
 │   └── reviewer.yaml
 ├── memory/
 │   ├── architecture/
-│   │   └── database-selection.md
+│   │   └── 1.md
 │   └── tooling/
-│       └── test-framework.md
+│       └── 2.md
 └── config.yaml
 ```
 
@@ -362,9 +362,8 @@ const agent = await agentService.createAgent({
 ```typescript
 import { memoryService } from '@agentmine/core';
 
-// DBに保存
+// DBに保存（idは自動採番）
 const memory = await memoryService.createMemory({
-  id: 'database-selection',
   category: 'architecture',
   title: 'データベース選定',
   summary: 'PostgreSQL（本番）/ SQLite（ローカル）',

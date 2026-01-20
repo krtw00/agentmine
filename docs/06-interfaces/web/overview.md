@@ -347,8 +347,8 @@ agentmineのWeb UIは、人間がAIエージェント（Worker）を管理・監
 │ [+ New Memory: n]                                         │
 ├─────────────────────┬─────────────────────────────────────┤
 │ 📁 architecture/    │  ---                                │
-│   └─ monorepo       │  id: monorepo                       │
-│   └─ database-selection │  title: Monorepo Architecture   │
+│   └─ monorepo       │  id: 1                              │
+│   └─ database       │  title: Monorepo Architecture       │
 │ 📁 tooling/         │  category: architecture             │
 │   └─ test-framework │  summary: pnpm + Turborepo を使用する │
 │ 📁 convention/      │  status: active                     │
@@ -1067,7 +1067,7 @@ export function registerFormatter(monaco: Monaco) {
 │ ℹ agentmine://prompts/coder.md:1:1                       │
 │   Consider adding a "## タスク" section                   │
 │                                                           │
-│ ℹ memory/architecture/monorepo.md:1:1                     │
+│ ℹ memory/architecture/1.md:1:1                            │
 │   Consider adding Memory Bank Front Matter                │
 │                                                           │
 └───────────────────────────────────────────────────────────┘
