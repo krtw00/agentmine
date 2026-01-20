@@ -163,9 +163,11 @@ agentmineは、人間とAIが協業する並列開発環境として、DevHive�
 
 ---
 
-## Phase 4: DevHive Integration
+## Phase 4: DevHive Integration（TypeScript再実装）
 
-**目標**: DevHive機能の統合
+**目標**: DevHive機能のTypeScript再実装・統合
+
+**決定事項（2026-01-20）**: DevHiveはGo実装のため、agentmineにGoを混在させず、Phase 4でTypeScriptで再実装する。DevHiveは保守モードに移行し、Phase 4完了後に廃止。
 
 ### Milestone 4.1: Docker-style Commands
 
@@ -198,6 +200,18 @@ agentmineは、人間とAIが協業する並列開発環境として、DevHive�
 - [ ] `agentmine worker hint <id> "msg"`
 - [ ] `agentmine worker restart <id>`
 - [ ] 自動介入アラート
+
+**Expected**: 2026-07 末
+
+### Milestone 4.4: DevHive Migration Tool
+
+**Status**: 未着手
+
+- [ ] `agentmine migrate --from-devhive .devhive.yaml`
+- [ ] `.devhive.yaml` → DB変換（tasks, agents）
+- [ ] `.devhive/tasks/` → memories変換
+- [ ] `.devhive/roles/` → agents変換
+- [ ] Validation & Dry-run機能
 
 **Expected**: 2026-07 末
 
