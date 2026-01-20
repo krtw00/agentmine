@@ -1,47 +1,52 @@
-import { existsSync, readFileSync, readdirSync, writeFileSync, unlinkSync, mkdirSync, statSync } from 'node:fs'
-import { join, basename, extname } from 'node:path'
-import { AGENTMINE_DIR } from '../db/index.js'
+import { eq, and, like, inArray } from 'drizzle-orm'
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+import type { Db } from '../db/index.js'
+import {
+  memories,
+  type Memory,
+  type NewMemory,
+  type MemoryStatus,
+} from '../db/schema.js'
 
 // ============================================
 // Types
 // ============================================
 
-export interface MemoryEntry {
-  /** File path relative to memory directory */
-  path: string
-  /** Category derived from subdirectory or filename */
-  category: string
-  /** Title derived from filename */
-  title: string
-  /** File content */
-  content: string
-  /** Last modified timestamp */
-  updatedAt: Date
-}
-
 export interface CreateMemoryInput {
-  /** File path (e.g., "decisions/architecture.md") */
-  path: string
-  /** Content to write */
+  category: string
+  title: string
   content: string
+  summary?: string
+  status?: MemoryStatus
+  tags?: string[]
+  relatedTaskId?: number
+  projectId?: number
+  createdBy?: string
 }
 
 export interface UpdateMemoryInput {
-  /** New content */
-  content: string
+  category?: string
+  title?: string
+  content?: string
+  summary?: string
+  status?: MemoryStatus
+  tags?: string[]
+  relatedTaskId?: number
 }
 
 export interface MemoryFilters {
+  projectId?: number
   category?: string
+  status?: MemoryStatus
+  tags?: string[]
 }
 
 export interface MemoryFileInfo {
-  /** File path relative to memory directory */
-  path: string
-  /** Title derived from filename */
-  title: string
-  /** Category derived from subdirectory */
+  id: number
   category: string
+  title: string
+  summary?: string
 }
 
 // ============================================
@@ -49,187 +54,205 @@ export interface MemoryFileInfo {
 // ============================================
 
 export class MemoryNotFoundError extends Error {
-  constructor(public readonly path: string) {
-    super(`Memory file "${path}" not found`)
+  constructor(public readonly id: number) {
+    super(`Memory "${id}" not found`)
     this.name = 'MemoryNotFoundError'
   }
 }
 
 export class MemoryAlreadyExistsError extends Error {
-  constructor(public readonly path: string) {
-    super(`Memory file "${path}" already exists`)
+  constructor(public readonly title: string, public readonly category: string) {
+    super(`Memory "${title}" in category "${category}" already exists`)
     this.name = 'MemoryAlreadyExistsError'
   }
 }
 
 // ============================================
-// MemoryService
+// MemoryService (DB-based)
 // ============================================
 
 export class MemoryService {
-  private memoryDir: string
-
-  constructor(projectRoot: string = process.cwd()) {
-    this.memoryDir = join(projectRoot, AGENTMINE_DIR, 'memory')
-  }
+  constructor(private db: Db) {}
 
   /**
-   * Get the memory directory path
+   * List all memories with optional filters
    */
-  getMemoryDir(): string {
-    return this.memoryDir
-  }
+  async list(filters: MemoryFilters = {}): Promise<Memory[]> {
+    let query = this.db.select().from(memories)
 
-  /**
-   * Check if memory directory exists
-   */
-  isInitialized(): boolean {
-    return existsSync(this.memoryDir)
-  }
+    const conditions = []
 
-  /**
-   * Ensure memory directory exists
-   */
-  ensureDir(): void {
-    if (!this.isInitialized()) {
-      mkdirSync(this.memoryDir, { recursive: true })
+    if (filters.projectId !== undefined) {
+      conditions.push(eq(memories.projectId, filters.projectId))
     }
-  }
-
-  /**
-   * List all memory entries
-   */
-  list(filters: MemoryFilters = {}): MemoryEntry[] {
-    if (!this.isInitialized()) {
-      return []
-    }
-
-    const entries: MemoryEntry[] = []
-    this.scanDirectory(this.memoryDir, '', entries)
-
     if (filters.category) {
-      return entries.filter(e => e.category === filters.category)
+      conditions.push(eq(memories.category, filters.category))
+    }
+    if (filters.status) {
+      conditions.push(eq(memories.status, filters.status))
     }
 
-    return entries
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as typeof query
+    }
+
+    const results = await query
+
+    // Filter by tags if specified (post-query filter since JSON)
+    if (filters.tags && filters.tags.length > 0) {
+      return results.filter(memory => {
+        const memoryTags = memory.tags as string[] | null
+        if (!memoryTags) return false
+        return filters.tags!.some(tag => memoryTags.includes(tag))
+      })
+    }
+
+    return results
   }
 
   /**
-   * Get a memory entry by path
+   * Get a memory by ID
    */
-  get(path: string): MemoryEntry | null {
-    const fullPath = join(this.memoryDir, path)
-
-    if (!existsSync(fullPath)) {
-      return null
-    }
-
-    return this.readEntry(path, fullPath)
+  async get(id: number): Promise<Memory | null> {
+    const results = await this.db
+      .select()
+      .from(memories)
+      .where(eq(memories.id, id))
+      .limit(1)
+    return results[0] ?? null
   }
 
   /**
-   * Create a new memory entry
+   * Find memory by title and category
    */
-  create(input: CreateMemoryInput): MemoryEntry {
-    this.ensureDir()
+  async findByTitleAndCategory(title: string, category: string, projectId?: number): Promise<Memory | null> {
+    const conditions = projectId !== undefined
+      ? and(eq(memories.title, title), eq(memories.category, category), eq(memories.projectId, projectId))
+      : and(eq(memories.title, title), eq(memories.category, category))
 
-    const fullPath = join(this.memoryDir, input.path)
-
-    if (existsSync(fullPath)) {
-      throw new MemoryAlreadyExistsError(input.path)
-    }
-
-    // Ensure parent directory exists
-    const parentDir = join(fullPath, '..')
-    if (!existsSync(parentDir)) {
-      mkdirSync(parentDir, { recursive: true })
-    }
-
-    writeFileSync(fullPath, input.content, 'utf-8')
-    return this.readEntry(input.path, fullPath)
+    const results = await this.db
+      .select()
+      .from(memories)
+      .where(conditions)
+      .limit(1)
+    return results[0] ?? null
   }
 
   /**
-   * Update a memory entry
+   * Create a new memory
    */
-  update(path: string, input: UpdateMemoryInput): MemoryEntry {
-    const fullPath = join(this.memoryDir, path)
-
-    if (!existsSync(fullPath)) {
-      throw new MemoryNotFoundError(path)
+  async create(input: CreateMemoryInput): Promise<Memory> {
+    const newMemory: NewMemory = {
+      category: input.category,
+      title: input.title,
+      content: input.content,
+      summary: input.summary,
+      status: input.status ?? 'active',
+      tags: input.tags ?? [],
+      relatedTaskId: input.relatedTaskId,
+      projectId: input.projectId,
+      createdBy: input.createdBy,
     }
 
-    writeFileSync(fullPath, input.content, 'utf-8')
-    return this.readEntry(path, fullPath)
+    const results = await this.db
+      .insert(memories)
+      .values(newMemory)
+      .returning()
+
+    return results[0]
   }
 
   /**
-   * Delete a memory entry
+   * Update a memory
    */
-  delete(path: string): void {
-    const fullPath = join(this.memoryDir, path)
-
-    if (!existsSync(fullPath)) {
-      throw new MemoryNotFoundError(path)
+  async update(id: number, input: UpdateMemoryInput): Promise<Memory> {
+    const existing = await this.get(id)
+    if (!existing) {
+      throw new MemoryNotFoundError(id)
     }
 
-    unlinkSync(fullPath)
+    const results = await this.db
+      .update(memories)
+      .set({
+        category: input.category ?? existing.category,
+        title: input.title ?? existing.title,
+        content: input.content ?? existing.content,
+        summary: input.summary ?? existing.summary,
+        status: input.status ?? existing.status,
+        tags: input.tags ?? existing.tags,
+        relatedTaskId: input.relatedTaskId ?? existing.relatedTaskId,
+        updatedAt: new Date(),
+      })
+      .where(eq(memories.id, id))
+      .returning()
+
+    return results[0]
+  }
+
+  /**
+   * Delete a memory
+   */
+  async delete(id: number): Promise<void> {
+    const existing = await this.get(id)
+    if (!existing) {
+      throw new MemoryNotFoundError(id)
+    }
+
+    await this.db.delete(memories).where(eq(memories.id, id))
+  }
+
+  /**
+   * Archive a memory
+   */
+  async archive(id: number): Promise<Memory> {
+    return this.update(id, { status: 'archived' })
   }
 
   /**
    * Get all categories
    */
-  getCategories(): string[] {
-    if (!this.isInitialized()) {
-      return []
-    }
-
+  async getCategories(projectId?: number): Promise<string[]> {
+    const allMemories = await this.list({ projectId })
     const categories = new Set<string>()
-    const entries = readdirSync(this.memoryDir, { withFileTypes: true })
-
-    for (const entry of entries) {
-      if (entry.isDirectory()) {
-        categories.add(entry.name)
-      } else if (entry.isFile() && this.isMemoryFile(entry.name)) {
-        categories.add('general')
-      }
+    for (const memory of allMemories) {
+      categories.add(memory.category)
     }
-
     return Array.from(categories).sort()
   }
 
   /**
    * Generate preview for AI consumption
-   * Returns formatted content of all memory entries
+   * Returns formatted content of all active memories
    */
-  preview(): string {
-    const entries = this.list()
+  async preview(filters: MemoryFilters = {}): Promise<string> {
+    const activeFilters = { ...filters, status: 'active' as MemoryStatus }
+    const memoryList = await this.list(activeFilters)
 
-    if (entries.length === 0) {
+    if (memoryList.length === 0) {
       return '# Memory Bank\n\nNo entries found.'
     }
 
     const parts: string[] = ['# Memory Bank', '']
 
     // Group by category
-    const byCategory = new Map<string, MemoryEntry[]>()
-    for (const entry of entries) {
-      const cat = entry.category
+    const byCategory = new Map<string, Memory[]>()
+    for (const memory of memoryList) {
+      const cat = memory.category
       if (!byCategory.has(cat)) {
         byCategory.set(cat, [])
       }
-      byCategory.get(cat)!.push(entry)
+      byCategory.get(cat)!.push(memory)
     }
 
     // Output each category
-    for (const [category, categoryEntries] of byCategory) {
+    for (const [category, categoryMemories] of byCategory) {
       parts.push(`## ${this.capitalizeFirst(category)}`)
       parts.push('')
 
-      for (const entry of categoryEntries) {
-        parts.push(`### ${entry.title}`)
+      for (const memory of categoryMemories) {
+        parts.push(`### ${memory.title}`)
         parts.push('')
-        parts.push(entry.content.trim())
+        parts.push(memory.content.trim())
         parts.push('')
       }
     }
@@ -238,112 +261,124 @@ export class MemoryService {
   }
 
   /**
-   * Generate compact preview (titles and first lines only)
+   * Generate compact preview (titles and summaries only)
    */
-  previewCompact(): string {
-    const entries = this.list()
+  async previewCompact(filters: MemoryFilters = {}): Promise<string> {
+    const activeFilters = { ...filters, status: 'active' as MemoryStatus }
+    const memoryList = await this.list(activeFilters)
 
-    if (entries.length === 0) {
+    if (memoryList.length === 0) {
       return 'No memory entries.'
     }
 
     const lines: string[] = []
 
-    for (const entry of entries) {
-      const firstLine = entry.content.split('\n')[0]?.trim() || '(empty)'
-      lines.push(`- **${entry.title}** (${entry.category}): ${firstLine}`)
+    for (const memory of memoryList) {
+      const summary = memory.summary || memory.content.split('\n')[0]?.trim() || '(empty)'
+      lines.push(`- **${memory.title}** (${memory.category}): ${summary}`)
     }
 
     return lines.join('\n')
   }
 
   /**
-   * List memory files (path and title only, no content)
-   * Used for reference-based prompt generation to reduce context length
+   * List memory file info (for reference-based prompt generation)
    */
-  listFiles(): MemoryFileInfo[] {
-    if (!this.isInitialized()) {
-      return []
+  async listFiles(filters: MemoryFilters = {}): Promise<MemoryFileInfo[]> {
+    const activeFilters = { ...filters, status: 'active' as MemoryStatus }
+    const memoryList = await this.list(activeFilters)
+
+    return memoryList.map(memory => ({
+      id: memory.id,
+      category: memory.category,
+      title: memory.title,
+      summary: memory.summary ?? undefined,
+    }))
+  }
+
+  /**
+   * Export memories to file system (for Worker worktree)
+   * Used when starting a Worker to provide Memory Bank access
+   */
+  async exportToFileSystem(outputDir: string, filters: MemoryFilters = {}): Promise<string[]> {
+    const activeFilters = { ...filters, status: 'active' as MemoryStatus }
+    const memoryList = await this.list(activeFilters)
+
+    // Ensure output directory exists
+    if (!existsSync(outputDir)) {
+      mkdirSync(outputDir, { recursive: true })
     }
 
-    const files: MemoryFileInfo[] = []
-    this.scanDirectoryForFiles(this.memoryDir, '', files)
-    return files
+    const exportedFiles: string[] = []
+
+    // Group by category and write files
+    const byCategory = new Map<string, Memory[]>()
+    for (const memory of memoryList) {
+      const cat = memory.category
+      if (!byCategory.has(cat)) {
+        byCategory.set(cat, [])
+      }
+      byCategory.get(cat)!.push(memory)
+    }
+
+    for (const [category, categoryMemories] of byCategory) {
+      const categoryDir = join(outputDir, category)
+      if (!existsSync(categoryDir)) {
+        mkdirSync(categoryDir, { recursive: true })
+      }
+
+      for (const memory of categoryMemories) {
+        // Convert title to filename (kebab-case)
+        const filename = this.titleToFilename(memory.title) + '.md'
+        const filePath = join(categoryDir, filename)
+
+        // Build file content with frontmatter
+        const content = this.buildFileContent(memory)
+        writeFileSync(filePath, content, 'utf-8')
+        exportedFiles.push(join(category, filename))
+      }
+    }
+
+    return exportedFiles
   }
 
   // ============================================
   // Private methods
   // ============================================
 
-  private scanDirectoryForFiles(dir: string, relativePath: string, files: MemoryFileInfo[]): void {
-    const items = readdirSync(dir, { withFileTypes: true })
-
-    for (const item of items) {
-      const itemRelativePath = relativePath ? `${relativePath}/${item.name}` : item.name
-
-      if (item.isDirectory()) {
-        this.scanDirectoryForFiles(join(dir, item.name), itemRelativePath, files)
-      } else if (item.isFile() && this.isMemoryFile(item.name)) {
-        const pathParts = itemRelativePath.split('/')
-        const category = pathParts.length > 1 ? pathParts[0] : 'general'
-        const title = this.filenameToTitle(item.name)
-
-        files.push({ path: itemRelativePath, title, category })
-      }
-    }
-  }
-
-  private scanDirectory(dir: string, relativePath: string, entries: MemoryEntry[]): void {
-    const items = readdirSync(dir, { withFileTypes: true })
-
-    for (const item of items) {
-      const itemRelativePath = relativePath ? `${relativePath}/${item.name}` : item.name
-      const itemFullPath = join(dir, item.name)
-
-      if (item.isDirectory()) {
-        this.scanDirectory(itemFullPath, itemRelativePath, entries)
-      } else if (item.isFile() && this.isMemoryFile(item.name)) {
-        entries.push(this.readEntry(itemRelativePath, itemFullPath))
-      }
-    }
-  }
-
-  private readEntry(path: string, fullPath: string): MemoryEntry {
-    const content = readFileSync(fullPath, 'utf-8')
-    const stats = statSync(fullPath)
-
-    // Extract category from path
-    const pathParts = path.split('/')
-    const category = pathParts.length > 1 ? pathParts[0] : 'general'
-
-    // Extract title from filename
-    const filename = basename(path)
-    const title = this.filenameToTitle(filename)
-
-    return {
-      path,
-      category,
-      title,
-      content,
-      updatedAt: stats.mtime,
-    }
-  }
-
-  private isMemoryFile(filename: string): boolean {
-    const ext = extname(filename).toLowerCase()
-    return ['.md', '.txt', '.yaml', '.yml', '.json'].includes(ext)
-  }
-
-  private filenameToTitle(filename: string): string {
-    // Remove extension
-    const name = basename(filename, extname(filename))
-    // Convert kebab-case or snake_case to Title Case
-    return name
-      .replace(/[-_]/g, ' ')
-      .replace(/\b\w/g, c => c.toUpperCase())
-  }
-
   private capitalizeFirst(str: string): string {
     return str.charAt(0).toUpperCase() + str.slice(1)
+  }
+
+  private titleToFilename(title: string): string {
+    return title
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .trim()
+  }
+
+  private buildFileContent(memory: Memory): string {
+    const lines: string[] = []
+
+    // Frontmatter
+    lines.push('---')
+    lines.push(`id: ${memory.id}`)
+    lines.push(`title: "${memory.title}"`)
+    lines.push(`category: ${memory.category}`)
+    if (memory.summary) {
+      lines.push(`summary: "${memory.summary}"`)
+    }
+    if (memory.tags && (memory.tags as string[]).length > 0) {
+      lines.push(`tags: [${(memory.tags as string[]).map(t => `"${t}"`).join(', ')}]`)
+    }
+    lines.push('---')
+    lines.push('')
+
+    // Content
+    lines.push(memory.content)
+
+    return lines.join('\n')
   }
 }

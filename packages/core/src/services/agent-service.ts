@@ -1,8 +1,15 @@
-import { existsSync, readFileSync, readdirSync, writeFileSync, unlinkSync } from 'node:fs'
-import { join } from 'node:path'
-import { parse, stringify } from 'yaml'
-import { AGENTMINE_DIR } from '../db/index.js'
-import type { AgentDefinition } from '../db/schema.js'
+import { eq, and } from 'drizzle-orm'
+import type { Db } from '../db/index.js'
+import {
+  agents,
+  agentHistory,
+  type Agent,
+  type NewAgent,
+  type AgentScope,
+  type AgentConfig,
+  type AgentSnapshot,
+  type AgentDefinition,
+} from '../db/schema.js'
 import {
   AgentNotFoundError,
   AgentAlreadyExistsError,
@@ -25,221 +32,251 @@ export interface CreateAgentInput {
   description?: string
   client: string
   model: string
-  scope?: {
-    read?: string[]
-    write?: string[]
-    exclude?: string[]
-  }
-  config?: {
-    temperature?: number
-    maxTokens?: number
-    promptFile?: string
-  }
+  scope?: Partial<AgentScope>
+  config?: AgentConfig
+  promptContent?: string
+  projectId?: number
+  createdBy?: string
 }
 
 export interface UpdateAgentInput {
   description?: string
   client?: string
   model?: string
-  scope?: {
-    read?: string[]
-    write?: string[]
-    exclude?: string[]
-  }
-  config?: {
-    temperature?: number
-    maxTokens?: number
-    promptFile?: string
-  }
+  scope?: Partial<AgentScope>
+  config?: AgentConfig
+  promptContent?: string
+  changedBy?: string
+  changeSummary?: string
+}
+
+export interface AgentFilters {
+  projectId?: number
 }
 
 // ============================================
-// AgentService
+// AgentService (DB-based)
 // ============================================
 
 export class AgentService {
-  private agentsDir: string
-
-  constructor(projectRoot: string = process.cwd()) {
-    this.agentsDir = join(projectRoot, AGENTMINE_DIR, 'agents')
-  }
-
-  /**
-   * Get the agents directory path
-   */
-  getAgentsDir(): string {
-    return this.agentsDir
-  }
-
-  /**
-   * Check if agents directory exists
-   */
-  isInitialized(): boolean {
-    return existsSync(this.agentsDir)
-  }
+  constructor(private db: Db) {}
 
   /**
    * Find all agents
    */
-  findAll(): AgentDefinition[] {
-    if (!this.isInitialized()) {
-      return []
+  async findAll(filters: AgentFilters = {}): Promise<Agent[]> {
+    if (filters.projectId !== undefined) {
+      return this.db
+        .select()
+        .from(agents)
+        .where(eq(agents.projectId, filters.projectId))
     }
+    return this.db.select().from(agents)
+  }
 
-    const files = readdirSync(this.agentsDir).filter(f => f.endsWith('.yaml'))
-    return files.map(f => {
-      const content = readFileSync(join(this.agentsDir, f), 'utf-8')
-      return this.parseAgent(content, f)
-    })
+  /**
+   * Find agent by ID
+   */
+  async findById(id: number): Promise<Agent | null> {
+    const results = await this.db
+      .select()
+      .from(agents)
+      .where(eq(agents.id, id))
+      .limit(1)
+    return results[0] ?? null
   }
 
   /**
    * Find agent by name
    */
-  findByName(name: string): AgentDefinition | null {
-    const filePath = join(this.agentsDir, `${name}.yaml`)
+  async findByName(name: string, projectId?: number): Promise<Agent | null> {
+    const conditions = projectId !== undefined
+      ? and(eq(agents.name, name), eq(agents.projectId, projectId))
+      : eq(agents.name, name)
 
-    if (!existsSync(filePath)) {
-      return null
-    }
-
-    const content = readFileSync(filePath, 'utf-8')
-    return this.parseAgent(content, `${name}.yaml`)
+    const results = await this.db
+      .select()
+      .from(agents)
+      .where(conditions)
+      .limit(1)
+    return results[0] ?? null
   }
 
   /**
    * Create a new agent
    */
-  create(input: CreateAgentInput): AgentDefinition {
-    const filePath = join(this.agentsDir, `${input.name}.yaml`)
-
-    if (existsSync(filePath)) {
+  async create(input: CreateAgentInput): Promise<Agent> {
+    // Check if agent with same name already exists
+    const existing = await this.findByName(input.name, input.projectId)
+    if (existing) {
       throw new AgentAlreadyExistsError(input.name)
     }
 
-    const defaultScope = {
-      read: ['**/*'],
-      write: ['**/*'],
-      exclude: ['node_modules/**', '.git/**'],
+    // Validate input
+    this.validateInput(input)
+
+    const defaultScope: AgentScope = {
+      write: [],
+      exclude: [],
     }
 
-    const agent: AgentDefinition = {
+    const scope: AgentScope = {
+      read: input.scope?.read,
+      write: input.scope?.write ?? defaultScope.write,
+      exclude: input.scope?.exclude ?? defaultScope.exclude,
+    }
+
+    const newAgent: NewAgent = {
       name: input.name,
       description: input.description,
       client: input.client,
       model: input.model,
-      scope: {
-        read: input.scope?.read ?? defaultScope.read,
-        write: input.scope?.write ?? defaultScope.write,
-        exclude: input.scope?.exclude ?? defaultScope.exclude,
-      },
-      config: input.config,
+      scope,
+      config: input.config ?? {},
+      promptContent: input.promptContent,
+      projectId: input.projectId,
+      createdBy: input.createdBy,
+      version: 1,
     }
 
-    writeFileSync(filePath, stringify(agent), 'utf-8')
-    return agent
+    const results = await this.db
+      .insert(agents)
+      .values(newAgent)
+      .returning()
+
+    return results[0]
   }
 
   /**
-   * Update an agent
+   * Update an agent (creates history record)
    */
-  update(name: string, input: UpdateAgentInput): AgentDefinition {
-    const existing = this.findByName(name)
+  async update(id: number, input: UpdateAgentInput): Promise<Agent> {
+    const existing = await this.findById(id)
     if (!existing) {
-      throw new AgentNotFoundError(name)
+      throw new AgentNotFoundError(String(id))
     }
 
-    const updated: AgentDefinition = {
-      ...existing,
-      description: input.description ?? existing.description,
-      client: input.client ?? existing.client,
-      model: input.model ?? existing.model,
-      scope: input.scope ? {
-        read: input.scope.read ?? existing.scope.read,
-        write: input.scope.write ?? existing.scope.write,
-        exclude: input.scope.exclude ?? existing.scope.exclude,
-      } : existing.scope,
-      config: input.config ?? existing.config,
+    // Create history record (snapshot of current state)
+    const snapshot: AgentSnapshot = {
+      name: existing.name,
+      description: existing.description ?? undefined,
+      client: existing.client,
+      model: existing.model,
+      scope: existing.scope as AgentScope,
+      config: existing.config as AgentConfig | undefined,
+      promptContent: existing.promptContent ?? undefined,
     }
 
-    const filePath = join(this.agentsDir, `${name}.yaml`)
-    writeFileSync(filePath, stringify(updated), 'utf-8')
-    return updated
+    await this.db.insert(agentHistory).values({
+      agentId: id,
+      snapshot,
+      version: existing.version,
+      changedBy: input.changedBy,
+      changeSummary: input.changeSummary,
+    })
+
+    // Build updated scope
+    const existingScope = existing.scope as AgentScope
+    const updatedScope: AgentScope = input.scope
+      ? {
+          read: input.scope.read ?? existingScope.read,
+          write: input.scope.write ?? existingScope.write,
+          exclude: input.scope.exclude ?? existingScope.exclude,
+        }
+      : existingScope
+
+    // Update agent
+    const results = await this.db
+      .update(agents)
+      .set({
+        description: input.description ?? existing.description,
+        client: input.client ?? existing.client,
+        model: input.model ?? existing.model,
+        scope: updatedScope,
+        config: input.config ?? existing.config,
+        promptContent: input.promptContent ?? existing.promptContent,
+        version: existing.version + 1,
+        updatedAt: new Date(),
+      })
+      .where(eq(agents.id, id))
+      .returning()
+
+    return results[0]
   }
 
   /**
    * Delete an agent
    */
-  delete(name: string): void {
-    const filePath = join(this.agentsDir, `${name}.yaml`)
-
-    if (!existsSync(filePath)) {
-      throw new AgentNotFoundError(name)
+  async delete(id: number): Promise<void> {
+    const existing = await this.findById(id)
+    if (!existing) {
+      throw new AgentNotFoundError(String(id))
     }
 
-    unlinkSync(filePath)
+    // Delete history first (foreign key constraint)
+    await this.db.delete(agentHistory).where(eq(agentHistory.agentId, id))
+
+    // Delete agent
+    await this.db.delete(agents).where(eq(agents.id, id))
   }
 
   /**
-   * Get agent file path
+   * Get agent history
    */
-  getFilePath(name: string): string {
-    return join(this.agentsDir, `${name}.yaml`)
+  async getHistory(agentId: number): Promise<typeof agentHistory.$inferSelect[]> {
+    return this.db
+      .select()
+      .from(agentHistory)
+      .where(eq(agentHistory.agentId, agentId))
+      .orderBy(agentHistory.version)
   }
 
   /**
-   * Validate agent definition
+   * Rollback to a specific version
    */
-  validate(agent: AgentDefinition): void {
-    if (!agent.name || typeof agent.name !== 'string') {
-      throw new InvalidAgentDefinitionError(agent.name ?? 'unknown', 'name is required')
+  async rollback(agentId: number, version: number): Promise<Agent> {
+    const history = await this.db
+      .select()
+      .from(agentHistory)
+      .where(and(eq(agentHistory.agentId, agentId), eq(agentHistory.version, version)))
+      .limit(1)
+
+    if (history.length === 0) {
+      throw new Error(`Version ${version} not found for agent ${agentId}`)
     }
 
-    if (!agent.client || typeof agent.client !== 'string') {
-      throw new InvalidAgentDefinitionError(agent.name, 'client is required')
-    }
+    const snapshot = history[0].snapshot as AgentSnapshot
 
-    if (!agent.model || typeof agent.model !== 'string') {
-      throw new InvalidAgentDefinitionError(agent.name, 'model is required')
-    }
-
-    if (agent.scope) {
-      if (agent.scope.read && !Array.isArray(agent.scope.read)) {
-        throw new InvalidAgentDefinitionError(agent.name, 'scope.read must be an array')
-      }
-      if (agent.scope.write && !Array.isArray(agent.scope.write)) {
-        throw new InvalidAgentDefinitionError(agent.name, 'scope.write must be an array')
-      }
-      if (agent.scope.exclude && !Array.isArray(agent.scope.exclude)) {
-        throw new InvalidAgentDefinitionError(agent.name, 'scope.exclude must be an array')
-      }
-    }
+    return this.update(agentId, {
+      description: snapshot.description,
+      client: snapshot.client,
+      model: snapshot.model,
+      scope: snapshot.scope,
+      config: snapshot.config,
+      promptContent: snapshot.promptContent,
+      changeSummary: `Rollback to version ${version}`,
+    })
   }
 
   /**
-   * Get prompt file content for an agent
-   * Returns null if promptFile is not specified or file doesn't exist
+   * Convert Agent to AgentDefinition (for backward compatibility)
    */
-  getPromptFileContent(agent: AgentDefinition): string | null {
-    if (!agent.config?.promptFile) {
-      return null
+  toDefinition(agent: Agent): AgentDefinition {
+    return {
+      name: agent.name,
+      description: agent.description ?? undefined,
+      client: agent.client,
+      model: agent.model,
+      scope: agent.scope as AgentScope,
+      config: agent.config as AgentConfig | undefined,
+      promptContent: agent.promptContent ?? undefined,
     }
-
-    // promptFile is relative to agents directory
-    const promptPath = join(this.agentsDir, '..', agent.config.promptFile)
-
-    if (!existsSync(promptPath)) {
-      return null
-    }
-
-    return readFileSync(promptPath, 'utf-8')
   }
 
   /**
    * Build command for running an agent
-   * Returns the command string to execute the agent
    */
-  buildCommand(agent: AgentDefinition, prompt: string): string {
+  buildCommand(agent: Agent | AgentDefinition, prompt: string): string {
     const client = agent.client.toLowerCase()
 
     switch (client) {
@@ -248,6 +285,7 @@ export class AgentService {
       case 'codex':
         return this.buildCodexCommand(agent, prompt)
       case 'gemini':
+      case 'gemini-cli':
         return this.buildGeminiCommand(agent, prompt)
       default:
         // Generic command - assume CLI tool with same name
@@ -255,64 +293,68 @@ export class AgentService {
     }
   }
 
-  private buildClaudeCodeCommand(agent: AgentDefinition, prompt: string): string {
+  private buildClaudeCodeCommand(agent: Agent | AgentDefinition, prompt: string): string {
     const parts = ['claude']
 
-    // Add model flag if specified
     if (agent.model) {
       parts.push(`--model ${agent.model}`)
     }
 
-    // Add prompt
     parts.push(`"${prompt.replace(/"/g, '\\"')}"`)
 
     return parts.join(' ')
   }
 
-  private buildCodexCommand(agent: AgentDefinition, prompt: string): string {
+  private buildCodexCommand(agent: Agent | AgentDefinition, prompt: string): string {
     const parts = ['codex']
 
-    // Add model flag if specified
     if (agent.model) {
       parts.push(`-m ${agent.model}`)
     }
 
-    // Add prompt
     parts.push(`"${prompt.replace(/"/g, '\\"')}"`)
 
     return parts.join(' ')
   }
 
-  private buildGeminiCommand(agent: AgentDefinition, prompt: string): string {
+  private buildGeminiCommand(agent: Agent | AgentDefinition, prompt: string): string {
     const parts = ['gemini']
 
-    // Add model flag if specified
     if (agent.model) {
       parts.push(`-m ${agent.model}`)
     }
 
-    // Add prompt
     parts.push(`"${prompt.replace(/"/g, '\\"')}"`)
 
     return parts.join(' ')
   }
 
   /**
-   * Parse YAML content into AgentDefinition
+   * Validate agent input
    */
-  private parseAgent(content: string, filename: string): AgentDefinition {
-    try {
-      const agent = parse(content) as AgentDefinition
-      this.validate(agent)
-      return agent
-    } catch (error) {
-      if (error instanceof InvalidAgentDefinitionError) {
-        throw error
+  private validateInput(input: CreateAgentInput): void {
+    if (!input.name || typeof input.name !== 'string') {
+      throw new InvalidAgentDefinitionError(input.name ?? 'unknown', 'name is required')
+    }
+
+    if (!input.client || typeof input.client !== 'string') {
+      throw new InvalidAgentDefinitionError(input.name, 'client is required')
+    }
+
+    if (!input.model || typeof input.model !== 'string') {
+      throw new InvalidAgentDefinitionError(input.name, 'model is required')
+    }
+
+    if (input.scope) {
+      if (input.scope.read && !Array.isArray(input.scope.read)) {
+        throw new InvalidAgentDefinitionError(input.name, 'scope.read must be an array')
       }
-      throw new InvalidAgentDefinitionError(
-        filename.replace('.yaml', ''),
-        error instanceof Error ? error.message : 'parse error'
-      )
+      if (input.scope.write && !Array.isArray(input.scope.write)) {
+        throw new InvalidAgentDefinitionError(input.name, 'scope.write must be an array')
+      }
+      if (input.scope.exclude && !Array.isArray(input.scope.exclude)) {
+        throw new InvalidAgentDefinitionError(input.name, 'scope.exclude must be an array')
+      }
     }
   }
 }

@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { AgentDefinition } from '@agentmine/core';
+import type { Agent, AgentScope as CoreAgentScope, AgentConfig as CoreAgentConfig } from '@agentmine/core';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 
+// Local types for UI state (normalized, all arrays non-optional)
 type AgentScope = {
   read: string[];
   write: string[];
@@ -16,16 +17,21 @@ type AgentScope = {
 type AgentConfig = {
   temperature?: number;
   maxTokens?: number;
-  promptFile?: string;
 };
 
-type AgentState = Omit<AgentDefinition, 'scope' | 'config'> & {
+type AgentState = {
+  id?: number;
+  name: string;
+  description?: string;
+  client: string;
+  model: string;
   scope: AgentScope;
   config: AgentConfig;
+  promptContent?: string;
 };
 
 type AgentsClientProps = {
-  agents: AgentDefinition[];
+  agents: Agent[];
 };
 
 const CLIENT_OPTIONS = ['claude-code', 'codex', 'gemini', 'custom'];
@@ -41,15 +47,27 @@ const fieldClassName =
 const textAreaClassName =
   'border-input w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]';
 
-const normalizeAgent = (agent: AgentDefinition): AgentState => ({
-  ...agent,
-  scope: {
-    read: agent.scope?.read ?? [],
-    write: agent.scope?.write ?? [],
-    exclude: agent.scope?.exclude ?? [],
-  },
-  config: { ...(agent.config ?? {}) },
-});
+const normalizeAgent = (agent: Agent): AgentState => {
+  const scope = agent.scope as CoreAgentScope | null;
+  const config = agent.config as CoreAgentConfig | null;
+  return {
+    id: agent.id,
+    name: agent.name,
+    description: agent.description ?? undefined,
+    client: agent.client,
+    model: agent.model,
+    scope: {
+      read: scope?.read ?? [],
+      write: scope?.write ?? [],
+      exclude: scope?.exclude ?? [],
+    },
+    config: {
+      temperature: config?.temperature,
+      maxTokens: config?.maxTokens,
+    },
+    promptContent: agent.promptContent ?? undefined,
+  };
+};
 
 const splitValues = (value: string) =>
   value
@@ -84,8 +102,7 @@ const serializeAgentToYaml = (agent: AgentState) => {
 
   if (
     agent.config.temperature !== undefined ||
-    agent.config.maxTokens !== undefined ||
-    agent.config.promptFile
+    agent.config.maxTokens !== undefined
   ) {
     lines.push('');
     lines.push('config:');
@@ -95,9 +112,14 @@ const serializeAgentToYaml = (agent: AgentState) => {
     if (agent.config.maxTokens !== undefined) {
       lines.push(`  maxTokens: ${agent.config.maxTokens}`);
     }
-    if (agent.config.promptFile) {
-      lines.push(`  promptFile: ${formatYamlValue(agent.config.promptFile)}`);
-    }
+  }
+
+  if (agent.promptContent) {
+    lines.push('');
+    lines.push('promptContent: |');
+    agent.promptContent.split('\n').forEach((line) => {
+      lines.push(`  ${line}`);
+    });
   }
 
   return lines.join('\n');
@@ -127,22 +149,42 @@ const parseScalar = (value: string) => {
 };
 
 const parseAgentYaml = (yaml: string) => {
-  const result: Partial<AgentDefinition> = {};
+  const result: Partial<AgentState> = {};
   const scope: AgentScope = { read: [], write: [], exclude: [] };
   const config: AgentConfig = {};
   let section: 'scope' | 'config' | null = null;
   let arrayKey: keyof AgentScope | null = null;
+  let inPromptContent = false;
+  let promptContentLines: string[] = [];
 
   try {
     const lines = yaml.split(/\r?\n/);
-    for (const rawLine of lines) {
+    for (let i = 0; i < lines.length; i++) {
+      const rawLine = lines[i];
       const line = rawLine.replace(/\t/g, '  ');
       const trimmed = line.trim();
+      const indent = line.match(/^\s*/)?.[0].length ?? 0;
+
+      // Handle promptContent block scalar
+      if (inPromptContent) {
+        if (indent >= 2) {
+          // Continuation line (remove 2 spaces of indentation)
+          promptContentLines.push(line.slice(2));
+          continue;
+        } else if (trimmed === '') {
+          // Empty line in block
+          promptContentLines.push('');
+          continue;
+        } else {
+          // End of block scalar
+          inPromptContent = false;
+          result.promptContent = promptContentLines.join('\n').trimEnd();
+        }
+      }
+
       if (trimmed === '' || trimmed.startsWith('#')) {
         continue;
       }
-
-      const indent = line.match(/^\s*/)?.[0].length ?? 0;
 
       if (indent === 0) {
         section = null;
@@ -155,6 +197,12 @@ const parseAgentYaml = (yaml: string) => {
           if (key === 'scope' || key === 'config') {
             section = key;
           }
+        } else if (rest === '|') {
+          // Block scalar
+          if (key === 'promptContent') {
+            inPromptContent = true;
+            promptContentLines = [];
+          }
         } else {
           if (key === 'name') {
             result.name = String(parseScalar(rest));
@@ -164,6 +212,8 @@ const parseAgentYaml = (yaml: string) => {
             result.client = String(parseScalar(rest));
           } else if (key === 'model') {
             result.model = String(parseScalar(rest));
+          } else if (key === 'promptContent') {
+            result.promptContent = String(parseScalar(rest));
           }
         }
         continue;
@@ -193,9 +243,6 @@ const parseAgentYaml = (yaml: string) => {
           if (key === 'maxTokens' && typeof value === 'number') {
             config.maxTokens = value;
           }
-          if (key === 'promptFile' && typeof value === 'string') {
-            config.promptFile = value;
-          }
         }
         continue;
       }
@@ -208,20 +255,26 @@ const parseAgentYaml = (yaml: string) => {
       }
     }
 
+    // Handle promptContent if it was the last section
+    if (inPromptContent && promptContentLines.length > 0) {
+      result.promptContent = promptContentLines.join('\n').trimEnd();
+    }
+
     if (!result.name || !result.client || !result.model) {
       return { error: 'name、client、model は必須です。' };
     }
 
-    return {
-      agent: normalizeAgent({
-        name: result.name,
-        description: result.description,
-        client: result.client,
-        model: result.model,
-        scope,
-        config: Object.keys(config).length ? config : undefined,
-      }),
+    const agentState: AgentState = {
+      name: result.name,
+      description: result.description,
+      client: result.client,
+      model: result.model,
+      scope,
+      config: Object.keys(config).length ? config : {},
+      promptContent: result.promptContent,
     };
+
+    return { agent: agentState };
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : 'YAMLを解析できませんでした。',
@@ -708,13 +761,18 @@ export default function AgentsClient({ agents: initialAgents }: AgentsClientProp
                           }
                         />
                       </label>
-                      <label className="space-y-2 text-sm">
-                        <span className="font-medium">プロンプトファイル</span>
-                        <Input
-                          value={draft.config.promptFile ?? ''}
+                      <label className="col-span-2 space-y-2 text-sm">
+                        <span className="font-medium">プロンプト</span>
+                        <textarea
+                          className={cn(textAreaClassName, 'min-h-[100px]')}
+                          value={draft.promptContent ?? ''}
                           onChange={(event) =>
-                            updateConfig('promptFile', event.target.value)
+                            updateDraft({
+                              ...draft,
+                              promptContent: event.target.value || undefined,
+                            })
                           }
+                          placeholder="エージェントへの追加指示..."
                         />
                       </label>
                     </div>

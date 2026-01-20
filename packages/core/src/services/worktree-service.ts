@@ -3,6 +3,10 @@ import { existsSync, mkdirSync, rmSync, readdirSync, statSync, chmodSync, unlink
 import { join, relative } from 'node:path'
 import { minimatch } from 'minimatch'
 import { AGENTMINE_DIR } from '../db/index.js'
+import type { AgentScope } from '../db/schema.js'
+
+// Re-export AgentScope for convenience
+export type { AgentScope } from '../db/schema.js'
 
 // ============================================
 // Types
@@ -24,15 +28,6 @@ export interface CreateWorktreeOptions {
   taskId: number
   /** Base branch to create from (default: current branch) */
   baseBranch?: string
-}
-
-export interface AgentScope {
-  /** Files that can be read (glob patterns) */
-  read?: string[]
-  /** Files that can be written (glob patterns) */
-  write?: string[]
-  /** Files to exclude completely (glob patterns) */
-  exclude?: string[]
 }
 
 export interface ApplyScopeResult {

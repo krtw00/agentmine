@@ -176,29 +176,163 @@ export type ProjectDecision = typeof projectDecisions.$inferSelect
 export type NewProjectDecision = typeof projectDecisions.$inferInsert
 
 // ============================================
-// Agent definition (from YAML, not DB)
+// Agents table (DB-based management)
 // ============================================
 
 /**
- * Agent定義はYAMLファイル（.agentmine/agents/*.yaml）で管理
- * DBには保存しない
+ * Agents table
+ * エージェント定義（DBマスター）
  */
+export const agents = sqliteTable('agents', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  projectId: integer('project_id').references(() => projects.id),
+
+  name: text('name').notNull(),
+  description: text('description'),
+
+  client: text('client').notNull(), // claude-code, codex, gemini-cli等
+  model: text('model').notNull(),   // opus, sonnet, haiku, gpt-4等
+
+  // スコープ制御（JSON）
+  // { read?: string[], write: string[], exclude: string[] }
+  // read省略時はデフォルトで全ファイル読み取り可能
+  scope: text('scope', { mode: 'json' })
+    .$type<AgentScope>()
+    .notNull()
+    .default({ write: [], exclude: [] }),
+
+  // 追加設定（JSON）
+  config: text('config', { mode: 'json' })
+    .$type<AgentConfig>()
+    .default({}),
+
+  // プロンプト内容（Markdown）
+  promptContent: text('prompt_content'),
+
+  // バージョン管理
+  version: integer('version').notNull().default(1),
+  createdBy: text('created_by'),
+
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  updatedAt: integer('updated_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+})
+
+/**
+ * Agent history table
+ * エージェント定義の変更履歴
+ */
+export const agentHistory = sqliteTable('agent_history', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  agentId: integer('agent_id')
+    .references(() => agents.id)
+    .notNull(),
+
+  // 変更前のスナップショット（JSON）
+  snapshot: text('snapshot', { mode: 'json' })
+    .$type<AgentSnapshot>()
+    .notNull(),
+
+  version: integer('version').notNull(),
+  changedBy: text('changed_by'),
+  changeSummary: text('change_summary'),
+
+  changedAt: integer('changed_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+})
+
+// ============================================
+// Memories table (DB-based Memory Bank)
+// ============================================
+
+/**
+ * Memories table
+ * Memory Bank（DBマスター）
+ */
+export const memories = sqliteTable('memories', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  projectId: integer('project_id').references(() => projects.id),
+
+  category: text('category').notNull(), // architecture, convention, tooling, rule等
+  title: text('title').notNull(),
+  summary: text('summary'), // 短い要約（AIコンテキスト用）
+
+  content: text('content').notNull(), // 本文（Markdown）
+
+  status: text('status', {
+    enum: ['draft', 'active', 'archived']
+  }).notNull().default('active'),
+
+  // メタデータ
+  tags: text('tags', { mode: 'json' })
+    .$type<string[]>()
+    .default([]),
+
+  relatedTaskId: integer('related_task_id').references(() => tasks.id),
+
+  createdBy: text('created_by'),
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  updatedAt: integer('updated_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+})
+
+// ============================================
+// Agent types
+// ============================================
+
+export interface AgentScope {
+  /** 参照可能（globパターン）- 省略時はexcludeを除く全ファイル */
+  read?: string[]
+  /** 編集可能（globパターン） */
+  write: string[]
+  /** アクセス不可（globパターン） */
+  exclude: string[]
+}
+
+export interface AgentConfig {
+  temperature?: number
+  maxTokens?: number
+}
+
+export interface AgentSnapshot {
+  name: string
+  description?: string
+  client: string
+  model: string
+  scope: AgentScope
+  config?: AgentConfig
+  promptContent?: string
+}
+
+// Legacy interface for backward compatibility
 export interface AgentDefinition {
   name: string
   description?: string
-  client: string // claude-code, opencode, codex等
-  model: string // opus, sonnet, haiku等
-  scope: {
-    read: string[] // 参照可能（globパターン）
-    write: string[] // 編集可能（globパターン）
-    exclude: string[] // アクセス不可（globパターン）
-  }
-  config?: {
-    temperature?: number
-    maxTokens?: number
-    promptFile?: string
-  }
+  client: string
+  model: string
+  scope: AgentScope
+  config?: AgentConfig
+  promptContent?: string
 }
+
+// Inferred types from agent/memory tables
+export type Agent = typeof agents.$inferSelect
+export type NewAgent = typeof agents.$inferInsert
+
+export type AgentHistoryRecord = typeof agentHistory.$inferSelect
+export type NewAgentHistoryRecord = typeof agentHistory.$inferInsert
+
+export type Memory = typeof memories.$inferSelect
+export type NewMemory = typeof memories.$inferInsert
+
+export type MemoryStatus = 'draft' | 'active' | 'archived'
 
 // ============================================
 // Config definition (from YAML)

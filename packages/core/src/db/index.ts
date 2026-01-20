@@ -157,6 +157,56 @@ export async function initializeDb(db: Db): Promise<void> {
     )
   `)
 
+  // Create agents table
+  await db.run(sql`
+    CREATE TABLE IF NOT EXISTS agents (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id INTEGER REFERENCES projects(id),
+      name TEXT NOT NULL,
+      description TEXT,
+      client TEXT NOT NULL,
+      model TEXT NOT NULL,
+      scope TEXT NOT NULL DEFAULT '{"write":[],"exclude":[]}',
+      config TEXT DEFAULT '{}',
+      prompt_content TEXT,
+      version INTEGER NOT NULL DEFAULT 1,
+      created_by TEXT,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+    )
+  `)
+
+  // Create agent_history table
+  await db.run(sql`
+    CREATE TABLE IF NOT EXISTS agent_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      agent_id INTEGER NOT NULL REFERENCES agents(id),
+      snapshot TEXT NOT NULL,
+      version INTEGER NOT NULL,
+      changed_by TEXT,
+      change_summary TEXT,
+      changed_at INTEGER NOT NULL DEFAULT (unixepoch())
+    )
+  `)
+
+  // Create memories table
+  await db.run(sql`
+    CREATE TABLE IF NOT EXISTS memories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id INTEGER REFERENCES projects(id),
+      category TEXT NOT NULL,
+      title TEXT NOT NULL,
+      summary TEXT,
+      content TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('draft', 'active', 'archived')),
+      tags TEXT DEFAULT '[]',
+      related_task_id INTEGER REFERENCES tasks(id),
+      created_by TEXT,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+    )
+  `)
+
   // Create indexes
   await db.run(sql`CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)`)
   await db.run(sql`CREATE INDEX IF NOT EXISTS idx_tasks_assignee ON tasks(assignee_type, assignee_name)`)
@@ -165,6 +215,12 @@ export async function initializeDb(db: Db): Promise<void> {
   await db.run(sql`CREATE INDEX IF NOT EXISTS idx_sessions_task ON sessions(task_id)`)
   await db.run(sql`CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions(status)`)
   await db.run(sql`CREATE INDEX IF NOT EXISTS idx_decisions_category ON project_decisions(category)`)
+  await db.run(sql`CREATE INDEX IF NOT EXISTS idx_agents_name ON agents(name)`)
+  await db.run(sql`CREATE INDEX IF NOT EXISTS idx_agents_project ON agents(project_id)`)
+  await db.run(sql`CREATE INDEX IF NOT EXISTS idx_agent_history_agent ON agent_history(agent_id)`)
+  await db.run(sql`CREATE INDEX IF NOT EXISTS idx_memories_category ON memories(category)`)
+  await db.run(sql`CREATE INDEX IF NOT EXISTS idx_memories_status ON memories(status)`)
+  await db.run(sql`CREATE INDEX IF NOT EXISTS idx_memories_project ON memories(project_id)`)
 
   // Migration: Add pid and worktree_path columns to sessions (for detach mode)
   // Check if column exists first to avoid errors
