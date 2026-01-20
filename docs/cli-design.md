@@ -125,9 +125,9 @@ agentmine
 
 **Note:**
 - `skill` コマンドは削除。スキル管理は agentmine の範囲外。
-- `agent run` コマンドは削除。Worker起動はOrchestrator（AIクライアント）の責務。
-- `task run` コマンドは削除。Orchestratorが直接Workerを起動する。
-- `worktree` コマンドは削除。Orchestratorがgitを直接使用。
+- `agent run` コマンドは削除。Worker起動は `agentmine worker run` に統一。
+- `task run` コマンドは削除。`agentmine worker run` が実行入口。
+- `worktree` コマンドは削除。worktree作成/削除は `worker run`/`worker cleanup` が内部で実行。
 - `task start/done/assign` コマンドは削除。ステータス更新はobservable factsに基づく。
 - `errors` コマンドは削除。sessionsテーブルで管理。
 
@@ -150,16 +150,16 @@ Examples:
 
 **動作:**
 1. `.agentmine/` ディレクトリ作成
-2. `config.yaml` 生成（インタラクティブ or テンプレート）
+2. `config.yaml` 生成（設定スナップショット: DBインポート用）
 3. `data.db` 初期化
-4. `agents/`, `prompts/`, `memory/` ディレクトリ作成
+4. `agents/`, `prompts/`, `memory/` ディレクトリ作成（スナップショット/エクスポート用）
 5. `baseBranch` 存在チェック（警告のみ、エラーにはしない）
 
 **baseBranch警告例:**
 ```
 $ agentmine init
 ⚠ Warning: Branch 'develop' does not exist.
-  Orchestrator will fail when creating worktrees.
+  `agentmine worker run` will fail when creating worktrees.
   Create it with: git branch develop main
 
 ✓ Initialized agentmine in .agentmine/
@@ -181,6 +181,7 @@ Options:
   --assignee <name>         担当者名
   --ai                      AI担当として割り当て
   --human                   人間担当として割り当て
+  --labels <csv>            ラベル（カンマ区切り）
   --json                    JSON出力
   --quiet                   IDのみ出力
 
@@ -194,7 +195,8 @@ Examples:
     -d "AgentServiceから一覧取得、YAMLエディタで編集可能にする。モックデータは使用しない。"
 ```
 
-**Note:** `--description`にWorkerが理解できる具体的な要件を記述することを推奨。詳細なプロジェクトルールはMemory Bankに、エージェント固有の指示はpromptFileに記述。
+**Note:** `--labels`は表示名をそのまま保存する（例: `blocked,needs_review`）。プロジェクト内で一意に扱う。デフォルトセットは編集/削除可能。  
+**Note:** `--description`にWorkerが理解できる具体的な要件を記述することを推奨。詳細なプロジェクトルールはMemory Bankに、エージェント固有の指示はpromptContentに記述。
 
 **出力例:**
 
@@ -275,6 +277,31 @@ Examples:
   agentmine task show 1 --with-sessions
 ```
 
+### task update
+
+```bash
+agentmine task update <id> [options]
+
+Arguments:
+  id                  タスクID
+
+Options:
+  -d, --description <text>  説明を更新
+  -p, --priority <level>    low | medium | high | critical
+  -t, --type <type>         task | feature | bug | refactor
+  --assignee <name>         担当者名
+  --ai                      AI担当として割り当て
+  --human                   人間担当として割り当て
+  --labels <csv>            ラベルを上書き（カンマ区切り）
+  --json                    JSON出力
+
+Examples:
+  agentmine task update 1 --labels blocked,needs_review
+  agentmine task update 1 -p high -t bug
+```
+
+**Note:** タスクステータスは観測可能な事実（セッション状態・マージ状態）で自動判定されるため、手動更新はしない。
+
 ### agent list
 
 ```bash
@@ -331,7 +358,7 @@ Scope:
 Config:
   temperature: 0.3
   maxTokens: 8192
-  promptFile: ../prompts/coder.md
+  promptContent: (inline markdown)
 ```
 
 ### worker run
@@ -431,7 +458,7 @@ Arguments:
   task-id             タスクID
 
 Options:
-  --status <status>   終了ステータス (completed | failed) (default: completed)
+  --status <status>   セッション終了ステータス (completed | failed) (default: completed)
   --no-cleanup        worktreeを残す
   --json              JSON出力
 
@@ -443,16 +470,18 @@ Examples:
 
 **動作:**
 1. セッション終了（DBに記録）
-2. タスクステータス更新（done | failed）
-3. worktree削除（--no-cleanupでスキップ）
-4. マージ手順を表示
+2. worktree削除（--no-cleanupでスキップ）
+3. マージ手順を表示
+
+**Note:** タスクステータスは観測可能な事実（セッション状態・マージ状態）で自動判定される。
 
 **出力例:**
 
 ```
-✓ Task #1 marked as done
-✓ Session #1 ended
+✓ Session #1 ended (completed)
 ✓ Worktree removed
+
+Task status is auto-determined by merge status.
 
 To merge changes:
   git merge task-1
@@ -614,7 +643,7 @@ Arguments:
   task-id             タスクID
 
 Options:
-  -a, --agent <name>  エージェント名（promptFile含める場合に必要）
+  -a, --agent <name>  エージェント名（promptContent含める場合に必要）
   --json              JSON出力
 
 Examples:
@@ -623,7 +652,7 @@ Examples:
   agentmine worker prompt 1 --agent coder --json
 ```
 
-**動作:** タスク情報、エージェントのpromptFile、Memory Bank参照情報からWorkerプロンプトを生成して表示。`worker run`で実際に渡されるプロンプトを事前確認できる。
+**動作:** タスク情報、エージェントのpromptContent、Memory Bank参照情報からWorkerプロンプトを生成して表示。`worker run`で実際に渡されるプロンプトを事前確認できる。
 
 ### worker context
 
@@ -717,9 +746,12 @@ Arguments:
 
 Options:
   --agent <name>      エージェント名
+  --group <id>        セッショングループID（並列比較用）
+  --idempotency-key <key>  重複開始防止キー
 
 Examples:
   agentmine session start 1 --agent coder
+  agentmine session start 1 --agent coder --group exp-202501
 ```
 
 **動作:**
@@ -773,7 +805,8 @@ Examples:
 1. セッションステータス更新（exit-codeに基づく）
 2. 終了時刻・duration記録
 3. 成果物/エラー情報保存
-4. タスクステータス更新（必要に応じて）
+
+**Note:** タスクステータスは観測可能な事実（セッション状態・マージ状態）で自動判定される。
 
 **Note:** OrchestratorがWorker終了後に呼び出す。
 
@@ -811,7 +844,7 @@ agentmine [command] [options]
 
 Global Options:
   -C, --cwd <path>    作業ディレクトリ
-  --config <path>     設定ファイルパス
+  --config <path>     設定スナップショット(YAML)のパス
   --json              JSON出力（Orchestrator向け、推奨）
   --quiet             最小出力（IDのみ等、スクリプト用）
   --pretty            人間向けフォーマット（デバッグ用）
@@ -847,7 +880,7 @@ agentmine task list --pretty
 | 0 | 成功 | 正常終了 |
 | 1 | 一般エラー | 予期しないエラー |
 | 2 | 引数エラー | 必須引数不足、不正な値 |
-| 3 | 設定エラー | config.yaml不正、baseBranch未設定 |
+| 3 | 設定エラー | 設定不正（settings）、baseBranch未設定 |
 | 4 | データベースエラー | DB接続失敗、マイグレーション失敗 |
 | 5 | リソース不存在 | TaskNotFound, AgentNotFound, SessionNotFound |
 | 6 | 状態エラー | InvalidStatus, SessionAlreadyRunning |
@@ -860,7 +893,7 @@ agentmine task list --pretty
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `AGENTMINE_CONFIG` | 設定ファイルパス | `.agentmine/config.yaml` |
+| `AGENTMINE_CONFIG` | 設定スナップショット(YAML)のパス | `.agentmine/config.yaml` |
 | `AGENTMINE_DB_URL` | データベースURL | `file:.agentmine/data.db` |
 | `AGENTMINE_LOG_LEVEL` | ログレベル | `info` |
 | `ANTHROPIC_API_KEY` | Anthropic APIキー | - |
@@ -892,7 +925,7 @@ program
 // Global options
 program
   .option('-C, --cwd <path>', 'Working directory')
-  .option('--config <path>', 'Config file path')
+  .option('--config <path>', 'Settings snapshot file path')
   .option('--json', 'JSON output')
   .option('--quiet', 'Minimal output')
   .option('--verbose', 'Verbose output');

@@ -37,7 +37,7 @@ export const tasks = sqliteTable('tasks', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   title: text('title').notNull(),
   status: text('status', {
-    enum: ['open', 'in_progress', 'review', 'done', 'blocked', 'cancelled']
+    enum: ['open', 'in_progress', 'done', 'failed', 'cancelled']
   }),
   // ...
 });
