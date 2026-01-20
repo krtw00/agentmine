@@ -275,6 +275,7 @@ agentmine session end 123 --exit-code 0 --dod-result merged
 
 ## References
 
-- [Agent Execution](./agent-execution.md)
-- [Memory Bank](./memory-bank.md)
-- [Parallel Execution](./parallel-execution.md)
+- **@../07-runtime/worker-lifecycle.md** - Worker実行ライフサイクル（Git操作詳細）
+- **@./agent-execution.md** - Agent実行フロー
+- **@./memory-bank.md** - Memory Bank
+- **@./parallel-execution.md** - 並列実行

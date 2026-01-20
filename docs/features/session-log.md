@@ -286,6 +286,8 @@ export class SessionService {
 
 ## References
 
-- [Memory Bank](./memory-bank.md)
-- [Agent Execution](./agent-execution.md)
-- [Error Handling](./error-handling.md)
+- **@../07-runtime/worker-lifecycle.md** - Worker実行ライフサイクル（セッション記録フロー）
+- **@../03-core-concepts/observable-facts.md** - Observable & Deterministic原則
+- **@./memory-bank.md** - Memory Bank
+- **@./agent-execution.md** - Agent実行フロー
+- **@./error-handling.md** - エラーハンドリング

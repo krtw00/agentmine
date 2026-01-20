@@ -284,6 +284,8 @@ git diff ./memory/
 
 ## References
 
-- [Data Model](../data-model.md)
-- [Agent Execution](./agent-execution.md)
-- [Session Log](./session-log.md)
+- **@../data-model.md** - データモデル
+- **@./agent-execution.md** - Agent実行フロー
+- **@../07-runtime/worker-lifecycle.md** - Worker実行ライフサイクル（Memory Bank注入）
+- **@../03-core-concepts/db-master.md** - DBマスター方式
+- **@./session-log.md** - セッション記録

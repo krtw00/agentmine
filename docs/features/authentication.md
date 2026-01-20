@@ -299,5 +299,5 @@ export class AuthService {
 
 ## References
 
-- [Architecture](../architecture.md)
-- [Data Model](../data-model.md)
+- **@../architecture.md** - システム概要
+- **@../data-model.md** - データモデル

@@ -812,6 +812,6 @@ echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | agentmine mcp serve
 
 ## References
 
-- [Architecture](../architecture.md)
-- [Agent Execution](./agent-execution.md)
-- [Memory Bank](./memory-bank.md)
+- **@../architecture.md** - システム概要
+- **@./agent-execution.md** - Agent実行フロー
+- **@./memory-bank.md** - Memory Bank

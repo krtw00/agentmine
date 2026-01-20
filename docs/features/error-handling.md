@@ -376,5 +376,7 @@ export class ErrorService {
 
 ## References
 
-- [Agent Execution](./agent-execution.md)
-- [Data Model](../data-model.md)
+- **@../02-architecture/design-principles.md** - Fail Fast原則
+- **@../03-core-concepts/observable-facts.md** - Observable & Deterministic原則
+- **@./agent-execution.md** - Agent実行フロー
+- **@../data-model.md** - データモデル

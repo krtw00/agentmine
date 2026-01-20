@@ -340,6 +340,8 @@ execution:
 
 ## References
 
-- [Agent System](./agent-system.md)
-- [Parallel Execution](./parallel-execution.md)
-- [Agent Execution](./agent-execution.md)
+- **@../03-core-concepts/scope-control.md** - スコープ制御の仕組み（SSOT）
+- **@../07-runtime/worker-lifecycle.md** - Worker実行ライフサイクル（スコープ適用フロー）
+- **@./agent-system.md** - エージェント定義
+- **@./parallel-execution.md** - 並列実行
+- **@./agent-execution.md** - Agent実行フロー
