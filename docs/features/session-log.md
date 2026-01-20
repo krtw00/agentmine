@@ -36,7 +36,7 @@ Orchestrator が観測可能（agentmineに記録）
   → 結果（成功/失敗）
 ```
 
-**Note:** Orchestratorが `agentmine session start` / `agentmine session end` を呼び出して記録。詳細なフローは [Agent Execution](./agent-execution.md) を参照。
+**Note:** `worker run` / `worker done` がセッション開始/終了を自動記録する。`session start` / `session end` は、`worker run` を使わない手動/外部Worker運用や、終了後に詳細（exit code/成果物/エラー）を追記したい場合に使用する。詳細なフローは [Agent Execution](./agent-execution.md) を参照。
 
 ### 記録項目
 
@@ -204,9 +204,10 @@ agentmine session cleanup --days 90
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                     │
 │  【Orchestratorの責務】                                              │
-│  - Worker起動前に agentmine session start                           │
-│  - Worker終了後に agentmine session end --artifacts ...             │
-│  - エラー時は --error オプションでエラー情報を記録                  │
+│  - 通常は agentmine worker run で開始（セッション作成）              │
+│  - agentmine worker done で終了・クリーンアップ                     │
+│  - 詳細記録が必要なら agentmine session end で追記                  │
+│  - worker run を使わない場合のみ session start/end を手動で呼ぶ     │
 │                                                                     │
 │  【agentmineの責務】                                                 │
 │  - セッション情報の永続化（sessions テーブル）                       │
@@ -222,16 +223,16 @@ agentmine session cleanup --days 90
 
 ```typescript
 export class SessionService {
-  // セッション開始（PMが呼び出し）
+  // セッション開始（worker runを使わない場合）
   async startSession(taskId: number, agentName: string): Promise<Session>;
 
-  // セッション完了（PMが呼び出し）
+  // セッション完了（詳細記録の追記）
   async completeSession(
     sessionId: number,
     artifacts: string[],
   ): Promise<void>;
 
-  // セッション失敗（PMが呼び出し）
+  // セッション失敗（詳細記録の追記）
   async failSession(
     sessionId: number,
     error: SessionError,

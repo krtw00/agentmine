@@ -264,6 +264,7 @@ Worker起動用のコマンドを生成（実行はOrchestratorが行う）。
   command: "cd /project/.agentmine/worktrees/task-5 && claude --print \"$(cat <<'PROMPT'\n# Worker: coder\n...\nPROMPT\n)\"",
   client: "claude-code",
   worktree: ".agentmine/worktrees/task-5",
+  sessionId: 123,
   agent: "coder",
   task: {
     id: 5,
@@ -277,7 +278,7 @@ Worker起動用のコマンドを生成（実行はOrchestratorが行う）。
 
 #### session_start
 
-セッションを開始（Worker起動前にOrchestratorが呼び出す）。
+セッションを開始（`worker_command` / `worker_run` を使わない手動/外部Worker運用時のみ）。
 
 ```typescript
 {
@@ -304,7 +305,7 @@ Worker起動用のコマンドを生成（実行はOrchestratorが行う）。
 
 #### session_end
 
-セッションを終了（Worker終了後にOrchestratorが呼び出す）。
+セッションを終了（終了後の詳細記録を追記したい場合や手動運用時に使用）。
 
 ```typescript
 {
@@ -725,12 +726,10 @@ Orchestrator: 3つのタスクを並列実行します。
 <tool_use: task_list status="open">
 → Tasks: #3, #4, #5
 
-<tool_use: session_start taskId=3 agent="coder">
-→ Session started: id=101
-
 <tool_use: worker_command taskId=3 agent="coder">
 → Command: claude-code exec "..."
 → Worktree prepared: .agentmine/worktrees/task-3
+→ Session started: id=101
 
 Orchestrator: Workerを起動します（サブプロセス）
 ```

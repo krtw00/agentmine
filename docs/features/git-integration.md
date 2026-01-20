@@ -261,9 +261,9 @@ agentmine worker run 42
 # worktree削除
 agentmine worker cleanup 42
 
-# セッション管理（agentmine経由）
-agentmine session start 42 --agent coder
+# セッション管理（詳細記録が必要な場合）
 agentmine session end 123 --exit-code 0 --dod-result merged
+# ※ session start は worker run を使わない手動/外部Worker運用時のみ
 
 # タスクステータスはobservable factsで自動判定
 # 明示的なステータス更新は不要

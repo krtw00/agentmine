@@ -759,7 +759,7 @@ Examples:
 2. ステータスを `running` に設定
 3. セッションIDを返す
 
-**Note:** OrchestratorがWorker起動前に呼び出す。実際のWorker起動はOrchestratorの責務。
+**Note:** `worker run` はセッションを自動作成するため、通常は不要。`worker run` を使わない手動/外部Worker運用時のみ使用する。
 
 ### session end
 
@@ -808,7 +808,7 @@ Examples:
 
 **Note:** タスクステータスは観測可能な事実（セッション状態・マージ状態）で自動判定される。
 
-**Note:** OrchestratorがWorker終了後に呼び出す。
+**Note:** `worker done` はセッションを終了する。`session end` は exit code/成果物/エラー等の詳細を追記したい場合や、`worker run` を使わない手動/外部Worker運用時に使用する。
 
 ### mcp serve
 
