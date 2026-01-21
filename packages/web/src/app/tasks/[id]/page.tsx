@@ -179,9 +179,11 @@ export default function TaskDetailPage() {
           <h1 className="text-2xl font-bold">{task.title}</h1>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm">
-            <Edit className="h-4 w-4 mr-2" />
-            Edit
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/tasks/${task.id}/edit`}>
+              <Edit className="h-4 w-4 mr-2" />
+              Edit
+            </Link>
           </Button>
           {(task.status === 'open' || task.status === 'failed' || task.status === 'dod_failed') && (
             <Button size="sm">
@@ -225,9 +227,10 @@ export default function TaskDetailPage() {
               ) : (
                 <div className="space-y-3">
                   {sessions.map((session) => (
-                    <div
+                    <Link
                       key={session.id}
-                      className="flex items-center justify-between p-3 rounded-lg border"
+                      href={`/sessions/${session.id}`}
+                      className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent/50 transition-colors"
                     >
                       <div>
                         <div className="flex items-center gap-2">
@@ -254,7 +257,7 @@ export default function TaskDetailPage() {
                           <span className="text-muted-foreground">{session.branchName}</span>
                         </div>
                       )}
-                    </div>
+                    </Link>
                   ))}
                 </div>
               )}

@@ -11,6 +11,7 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  Cpu,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -20,6 +21,7 @@ import { useState } from 'react'
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Tasks', href: '/tasks', icon: ListTodo },
+  { name: 'Workers', href: '/workers', icon: Cpu },
   { name: 'Sessions', href: '/sessions', icon: Play },
   { name: 'Agents', href: '/agents', icon: Bot },
   { name: 'Memory', href: '/memory', icon: Brain },
