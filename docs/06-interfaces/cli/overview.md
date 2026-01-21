@@ -44,6 +44,8 @@ AI/スクリプト向けに最適化。人間向けフォーマット（--pretty
 | worker | Worker環境管理 |
 | session | セッション管理 |
 | memory | Memory Bank |
+| settings | プロジェクト設定管理 |
+| audit | 監査ログ |
 | db | データベース管理 |
 | mcp | MCPサーバー |
 | ui | Web UI起動 |
@@ -168,6 +170,47 @@ AI/スクリプト向けに最適化。人間向けフォーマット（--pretty
 | agent rollback {name} --version {n} | 過去バージョンに戻す |
 | agent export {name} --output {file} | エクスポート |
 | agent import --file {file} | インポート |
+
+## settingsコマンド
+
+| サブコマンド | 説明 |
+|-------------|------|
+| settings list | 設定一覧 |
+| settings show | 設定を構造化表示 |
+| settings get {key} | 設定値取得 |
+| settings set {key} {value} | 設定値変更 |
+| settings delete {key} | 設定削除 |
+| settings init | デフォルト設定で初期化 |
+
+### 設定キー例
+
+| キー | 説明 | デフォルト |
+|------|------|-----------|
+| git.baseBranch | ベースブランチ名 | main |
+| git.branchPrefix | ブランチ接頭辞 | task- |
+| execution.maxWorkers | 最大並列Worker数 | 3 |
+| execution.worktreePath | worktree配置先 | .agentmine/worktrees |
+| labels.default | デフォルトラベル | [] |
+
+## auditコマンド
+
+| サブコマンド | 説明 |
+|-------------|------|
+| audit list | 監査ログ一覧 |
+| audit show {id} | 監査ログ詳細 |
+| audit history {entityType} {entityId} | エンティティの履歴 |
+| audit stats | 統計情報 |
+| audit cleanup | 古いログ削除 |
+
+### audit listオプション
+
+| オプション | 説明 |
+|-----------|------|
+| -a, --action | create / update / delete / start / stop / export |
+| -e, --entity | task / session / agent / memory / settings |
+| -u, --user | ユーザーIDでフィルタ |
+| -l, --limit | 表示件数（デフォルト: 50） |
+| --json | JSON出力 |
 
 ## グローバルオプション
 
