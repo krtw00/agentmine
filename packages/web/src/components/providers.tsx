@@ -1,6 +1,7 @@
 'use client'
 
 import { ThemeProvider } from 'next-themes'
+import { SSEProvider } from './providers/sse-provider'
 
 interface ProvidersProps {
   children: React.ReactNode
@@ -14,7 +15,9 @@ export function Providers({ children }: ProvidersProps) {
       enableSystem
       disableTransitionOnChange
     >
-      {children}
+      <SSEProvider>
+        {children}
+      </SSEProvider>
     </ThemeProvider>
   )
 }

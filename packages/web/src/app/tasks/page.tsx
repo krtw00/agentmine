@@ -1,23 +1,22 @@
 'use client'
 
-import { useEffect, useState, useMemo, Suspense } from 'react'
+import { useEffect, useState, useMemo, Suspense, useCallback } from 'react'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
-import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { TaskList } from '@/components/tasks/task-list'
+import { TaskBoard } from '@/components/tasks/task-board'
+import { TaskHierarchy } from '@/components/tasks/task-hierarchy'
 import {
   Plus,
   Search,
   Filter,
   AlertCircle,
-  Clock,
-  CheckCircle2,
-  XCircle,
-  Circle,
-  Ban,
+  List,
+  LayoutGrid,
+  GitBranch,
 } from 'lucide-react'
 
 interface Task {
@@ -30,87 +29,71 @@ interface Task {
   assigneeType: string | null
   assigneeName: string | null
   labels: string[]
+  parentId: number | null
   createdAt: string | null
   updatedAt: string | null
 }
 
-const statusConfig: Record<string, { label: string; icon: React.ElementType; variant: 'default' | 'secondary' | 'success' | 'destructive' | 'warning' | 'outline' }> = {
-  open: { label: 'Open', icon: Circle, variant: 'secondary' },
-  in_progress: { label: 'In Progress', icon: Clock, variant: 'warning' },
-  done: { label: 'Done', icon: CheckCircle2, variant: 'success' },
-  failed: { label: 'Failed', icon: XCircle, variant: 'destructive' },
-  dod_failed: { label: 'DoD Failed', icon: AlertCircle, variant: 'destructive' },
-  cancelled: { label: 'Cancelled', icon: Ban, variant: 'outline' },
-}
+type ViewMode = 'list' | 'board' | 'hierarchy'
 
-const priorityConfig: Record<string, { label: string; className: string }> = {
-  critical: { label: 'Critical', className: 'text-red-600 bg-red-100 dark:bg-red-900/30' },
-  high: { label: 'High', className: 'text-orange-600 bg-orange-100 dark:bg-orange-900/30' },
-  medium: { label: 'Medium', className: 'text-yellow-600 bg-yellow-100 dark:bg-yellow-900/30' },
-  low: { label: 'Low', className: 'text-gray-600 bg-gray-100 dark:bg-gray-900/30' },
-}
-
-const typeConfig: Record<string, { label: string; className: string }> = {
-  task: { label: 'Task', className: 'text-blue-600' },
-  feature: { label: 'Feature', className: 'text-purple-600' },
-  bug: { label: 'Bug', className: 'text-red-600' },
-  refactor: { label: 'Refactor', className: 'text-green-600' },
-}
-
-function TaskStatusBadge({ status }: { status: string }) {
-  const config = statusConfig[status] || statusConfig.open
-  const Icon = config.icon
-  return (
-    <Badge variant={config.variant} className="gap-1">
-      <Icon className="h-3 w-3" />
-      {config.label}
-    </Badge>
-  )
-}
-
-function TaskPriorityBadge({ priority }: { priority: string }) {
-  const config = priorityConfig[priority] || priorityConfig.medium
-  return (
-    <span className={`text-xs px-2 py-0.5 rounded font-medium ${config.className}`}>
-      {config.label}
-    </span>
-  )
-}
-
-function formatDate(dateString: string | null): string {
-  if (!dateString) return '-'
-  const date = new Date(dateString)
-  return date.toLocaleDateString('ja-JP', {
-    month: 'short',
-    day: 'numeric',
-  })
+const statusConfig: Record<string, { label: string }> = {
+  open: { label: 'Open' },
+  in_progress: { label: 'In Progress' },
+  done: { label: 'Done' },
+  failed: { label: 'Failed' },
+  dod_failed: { label: 'DoD Failed' },
+  cancelled: { label: 'Cancelled' },
 }
 
 function TasksContent() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>(searchParams.get('status') || '')
-  const [priorityFilter, setPriorityFilter] = useState<string>('')
-  const [typeFilter, setTypeFilter] = useState<string>('')
+  const [viewMode, setViewMode] = useState<ViewMode>(
+    (searchParams.get('view') as ViewMode) || 'list'
+  )
+
+  const fetchTasks = useCallback(async () => {
+    try {
+      const res = await fetch('/api/tasks')
+      if (!res.ok) throw new Error('Failed to fetch')
+      const json = await res.json()
+      setTasks(json)
+    } catch (e) {
+      setError('Failed to load tasks')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
-    async function fetchTasks() {
-      try {
-        const res = await fetch('/api/tasks')
-        if (!res.ok) throw new Error('Failed to fetch')
-        const json = await res.json()
-        setTasks(json)
-      } catch (e) {
-        setError('Failed to load tasks')
-      } finally {
-        setLoading(false)
-      }
-    }
     fetchTasks()
-  }, [])
+  }, [fetchTasks])
+
+  const handleViewChange = (mode: ViewMode) => {
+    setViewMode(mode)
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('view', mode)
+    router.push(`/tasks?${params.toString()}`, { scroll: false })
+  }
+
+  const handleTaskUpdate = useCallback(async (taskId: number, updates: Partial<Task>) => {
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      })
+      if (!res.ok) throw new Error('Failed to update')
+      await fetchTasks()
+    } catch (e) {
+      console.error('Failed to update task:', e)
+    }
+  }, [fetchTasks])
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
@@ -120,15 +103,9 @@ function TasksContent() {
       if (statusFilter && task.status !== statusFilter) {
         return false
       }
-      if (priorityFilter && task.priority !== priorityFilter) {
-        return false
-      }
-      if (typeFilter && task.type !== typeFilter) {
-        return false
-      }
       return true
     })
-  }, [tasks, searchQuery, statusFilter, priorityFilter, typeFilter])
+  }, [tasks, searchQuery, statusFilter])
 
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = {}
@@ -179,99 +156,98 @@ function TasksContent() {
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-        <Button asChild>
-          <Link href="/tasks/new">
-            <Plus className="h-4 w-4 mr-2" />
-            New Task
-          </Link>
-        </Button>
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-wrap gap-2">
-        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-          <Filter className="h-4 w-4" />
-          <span>Filter:</span>
-        </div>
-
-        {/* Status Filter */}
-        <div className="flex flex-wrap gap-1">
-          <Button
-            variant={statusFilter === '' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setStatusFilter('')}
-          >
-            All ({tasks.length})
-          </Button>
-          {Object.entries(statusConfig).map(([key, config]) => (
+        <div className="flex gap-2">
+          {/* View Mode Toggle */}
+          <div className="flex border rounded-lg">
             <Button
-              key={key}
-              variant={statusFilter === key ? 'default' : 'outline'}
+              variant={viewMode === 'list' ? 'default' : 'ghost'}
               size="sm"
-              onClick={() => setStatusFilter(statusFilter === key ? '' : key)}
+              className="rounded-r-none"
+              onClick={() => handleViewChange('list')}
+              title="List View"
             >
-              {config.label} ({statusCounts[key] || 0})
+              <List className="h-4 w-4" />
             </Button>
-          ))}
+            <Button
+              variant={viewMode === 'board' ? 'default' : 'ghost'}
+              size="sm"
+              className="rounded-none border-x"
+              onClick={() => handleViewChange('board')}
+              title="Board View"
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === 'hierarchy' ? 'default' : 'ghost'}
+              size="sm"
+              className="rounded-l-none"
+              onClick={() => handleViewChange('hierarchy')}
+              title="Hierarchy View"
+            >
+              <GitBranch className="h-4 w-4" />
+            </Button>
+          </div>
+          <Button asChild>
+            <Link href="/tasks/new">
+              <Plus className="h-4 w-4 mr-2" />
+              New Task
+            </Link>
+          </Button>
         </div>
       </div>
 
-      {/* Task List */}
-      {filteredTasks.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <p className="text-muted-foreground">
-              {tasks.length === 0 ? 'No tasks yet. Create your first task!' : 'No tasks match your filters.'}
-            </p>
-            {tasks.length === 0 && (
-              <Button className="mt-4" asChild>
-                <Link href="/tasks/new">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Task
-                </Link>
+      {/* Filters (only for list view) */}
+      {viewMode === 'list' && (
+        <div className="flex flex-wrap gap-2">
+          <div className="flex items-center gap-1 text-sm text-muted-foreground">
+            <Filter className="h-4 w-4" />
+            <span>Filter:</span>
+          </div>
+
+          {/* Status Filter */}
+          <div className="flex flex-wrap gap-1">
+            <Button
+              variant={statusFilter === '' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setStatusFilter('')}
+            >
+              All ({tasks.length})
+            </Button>
+            {Object.entries(statusConfig).map(([key, config]) => (
+              <Button
+                key={key}
+                variant={statusFilter === key ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setStatusFilter(statusFilter === key ? '' : key)}
+              >
+                {config.label} ({statusCounts[key] || 0})
               </Button>
-            )}
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-2">
-          {filteredTasks.map((task) => (
-            <Link key={task.id} href={`/tasks/${task.id}`}>
-              <Card className="hover:bg-accent/50 transition-colors cursor-pointer">
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs text-muted-foreground">#{task.id}</span>
-                        <span className={`text-xs font-medium ${typeConfig[task.type]?.className || ''}`}>
-                          {typeConfig[task.type]?.label || task.type}
-                        </span>
-                      </div>
-                      <h3 className="font-medium truncate">{task.title}</h3>
-                      {task.description && (
-                        <p className="text-sm text-muted-foreground truncate mt-1">
-                          {task.description}
-                        </p>
-                      )}
-                      <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
-                        {task.assigneeName && (
-                          <span>
-                            {task.assigneeType === 'ai' ? '🤖' : '👤'} {task.assigneeName}
-                          </span>
-                        )}
-                        <span>Updated {formatDate(task.updatedAt)}</span>
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-2">
-                      <TaskStatusBadge status={task.status} />
-                      <TaskPriorityBadge priority={task.priority} />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
+            ))}
+          </div>
         </div>
+      )}
+
+      {/* Task Views */}
+      {tasks.length === 0 ? (
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <p className="text-muted-foreground mb-4">No tasks yet. Create your first task!</p>
+            <Button asChild>
+              <Link href="/tasks/new">
+                <Plus className="h-4 w-4 mr-2" />
+                Create Task
+              </Link>
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <>
+          {viewMode === 'list' && <TaskList tasks={filteredTasks} />}
+          {viewMode === 'board' && (
+            <TaskBoard tasks={filteredTasks} onTaskUpdate={handleTaskUpdate} />
+          )}
+          {viewMode === 'hierarchy' && <TaskHierarchy tasks={filteredTasks} />}
+        </>
       )}
     </div>
   )

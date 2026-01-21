@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useSSE, SSEEvent } from '@/hooks/use-sse'
 import {
   ListTodo,
   CheckCircle2,
@@ -14,6 +15,8 @@ import {
   Play,
   Plus,
   ArrowRight,
+  Wifi,
+  WifiOff,
 } from 'lucide-react'
 
 interface TaskStats {
@@ -119,26 +122,62 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [elapsedKey, setElapsedKey] = useState(0)
+
+  const fetchDashboard = useCallback(async () => {
+    try {
+      const res = await fetch('/api/dashboard')
+      if (!res.ok) throw new Error('Failed to fetch')
+      const json = await res.json()
+      setData(json)
+      setError(null)
+    } catch (e) {
+      setError('Failed to load dashboard data')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  // SSE event handler
+  const handleSSEEvent = useCallback((event: SSEEvent) => {
+    // Refresh dashboard data on relevant events
+    if (
+      event.type.startsWith('task:') ||
+      event.type.startsWith('session:') ||
+      event.type.startsWith('worker:')
+    ) {
+      fetchDashboard()
+    }
+  }, [fetchDashboard])
+
+  // Connect to SSE
+  const { connected } = useSSE({
+    enabled: true,
+    onEvent: handleSSEEvent,
+  })
 
   useEffect(() => {
-    async function fetchDashboard() {
-      try {
-        const res = await fetch('/api/dashboard')
-        if (!res.ok) throw new Error('Failed to fetch')
-        const json = await res.json()
-        setData(json)
-      } catch (e) {
-        setError('Failed to load dashboard data')
-      } finally {
-        setLoading(false)
-      }
-    }
-
     fetchDashboard()
-    // Refresh every 10 seconds for active sessions
+  }, [fetchDashboard])
+
+  // Update elapsed time every second for running sessions
+  useEffect(() => {
+    if (!data?.activeSessions.length) return
+
+    const interval = setInterval(() => {
+      setElapsedKey((prev) => prev + 1)
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [data?.activeSessions.length])
+
+  // Fallback polling when SSE is not connected
+  useEffect(() => {
+    if (connected) return
+
     const interval = setInterval(fetchDashboard, 10000)
     return () => clearInterval(interval)
-  }, [])
+  }, [connected, fetchDashboard])
 
   if (loading) {
     return (
@@ -178,13 +217,26 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* Quick Actions */}
-      <div className="flex gap-2">
+      <div className="flex items-center gap-2">
         <Button asChild>
-          <Link href="/tasks?action=new">
+          <Link href="/tasks/new">
             <Plus className="h-4 w-4 mr-2" />
             New Task
           </Link>
         </Button>
+        <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
+          {connected ? (
+            <>
+              <Wifi className="h-3 w-3 text-green-500" />
+              <span>Live</span>
+            </>
+          ) : (
+            <>
+              <WifiOff className="h-3 w-3" />
+              <span>Polling</span>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -240,9 +292,10 @@ export default function DashboardPage() {
             ) : (
               <div className="space-y-3">
                 {activeSessions.map((session) => (
-                  <div
+                  <Link
                     key={session.id}
-                    className="flex items-center justify-between p-3 rounded-lg border"
+                    href={`/sessions/${session.id}`}
+                    className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition-colors"
                   >
                     <div className="flex items-center gap-3">
                       <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
@@ -255,11 +308,11 @@ export default function DashboardPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Clock className="h-3 w-3 text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground font-mono">
+                      <span key={elapsedKey} className="text-xs text-muted-foreground font-mono">
                         {getElapsedTime(session.startedAt)}
                       </span>
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             )}

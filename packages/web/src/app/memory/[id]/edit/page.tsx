@@ -3,11 +3,18 @@
 import { useEffect, useState, use } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ArrowLeft, Loader2, Plus, X, AlertCircle } from 'lucide-react'
+
+// Dynamic import Monaco Editor to avoid SSR issues
+const MarkdownEditor = dynamic(
+  () => import('@/components/editor/monaco-editor').then((mod) => mod.MarkdownEditor),
+  { ssr: false, loading: () => <Skeleton className="h-[300px]" /> }
+)
 
 interface Memory {
   id: number
@@ -199,16 +206,17 @@ export default function EditMemoryPage({ params }: { params: Promise<{ id: strin
               />
             </div>
 
-            {/* Content */}
+            {/* Content with Monaco Editor */}
             <div className="space-y-2">
               <label className="text-sm font-medium">Content (Markdown) *</label>
-              <textarea
-                className="w-full min-h-[200px] px-3 py-2 text-sm rounded-md border bg-transparent focus:outline-none focus:ring-2 focus:ring-ring font-mono"
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                placeholder="Write memory content in Markdown..."
-                disabled={saving}
-              />
+              <div className="border rounded-lg overflow-hidden">
+                <MarkdownEditor
+                  value={content}
+                  onChange={setContent}
+                  height="300px"
+                  readOnly={saving}
+                />
+              </div>
             </div>
 
             {/* Tags */}
