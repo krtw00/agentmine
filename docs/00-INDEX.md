@@ -164,6 +164,7 @@ AgentMineの機能を実装・拡張したい：
 | 005-ai-agnostic-orchestration.md | ADR-005: AI非依存のOrchestrator設計 |
 | 006-dependency-and-proposals.md | ADR-006: 依存関係モデルと提案テーブル |
 | 007-five-layer-architecture.md | ADR-007: 5層アーキテクチャ |
+| 008-process-management-webui.md | ADR-008: プロセス管理とWeb UI可視化 |
 | mysql-vs-postgresql-comparison.md | MySQL vs PostgreSQL詳細比較 |
 
 ### appendix
