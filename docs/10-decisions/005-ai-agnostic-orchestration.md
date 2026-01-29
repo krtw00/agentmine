@@ -152,8 +152,8 @@ sequenceDiagram
 
 以下は今後検討が必要：
 
-- ~~依存関係のモデル化方法~~ → [ADR-006](./006-dependency-and-proposals.md) で決定
-- ~~提案の保存先（新テーブル or 既存拡張）~~ → [ADR-006](./006-dependency-and-proposals.md) で決定
+- 依存関係のモデル化方法
+- 提案の保存先（新テーブル or 既存拡張）
 - 自動承認モードの条件設定
 - 失敗時のリトライ戦略
 
