@@ -5,6 +5,7 @@ export * from './memory-service.js'
 export * from './worktree-service.js'
 export * from './settings-service.js'
 export * from './audit-log-service.js'
+export * from './process-manager.js'
 
 // Re-export ConfigService for backward compatibility
 // TODO: Migrate to SettingsService
