@@ -12,7 +12,7 @@ ai_summary: "5層アーキテクチャのプロセス管理をNode.js + Web UI�
 
 ## コンテキスト
 
-ADR-007で5層アーキテクチャ（Shogun/Planner/Supervisor/Worker/Reviewer）を採用した。これらの層は複数のAIプロセスとして実行される。
+ADR-007で5層アーキテクチャ（Orchestrator/Planner/Supervisor/Worker/Reviewer）を採用した。これらの層は複数のAIプロセスとして実行される。
 
 ### 課題
 
@@ -54,7 +54,7 @@ AgentMineがNode.jsの`child_process`でAIプロセスを管理し、Web UIで�
           ↓ spawn
 ┌─────────────────────────────────────────────────┐
 │  AIプロセス群                                    │
-│  - Shogun（Claude Code）                        │
+│  - Orchestrator（Claude Code）                        │
 │  - Planner（Claude Code）                       │
 │  - Supervisor（Claude Code）                    │
 │  - Worker 1..N（Claude Code）                   │
@@ -68,10 +68,10 @@ AgentMineがNode.jsの`child_process`でAIプロセスを管理し、Web UIで�
 ┌─────────────────────────────────────────────────────────────┐
 │  AgentMine - Session: auth-feature                          │
 ├─────────────────────────────────────────────────────────────┤
-│ [Shogun] [Planner] [Supervisor] [Workers ▼] [Reviewer]      │
+│ [Orchestrator] [Planner] [Supervisor] [Workers ▼] [Reviewer]      │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
-│  Shogun                                            [入力 ▼] │
+│  Orchestrator                                            [入力 ▼] │
 │  ─────────────────────────────────────────────────────────  │
 │  > 認証機能を実装してください                                │
 │  < 了解しました。Plannerにタスク分解を依頼します。            │

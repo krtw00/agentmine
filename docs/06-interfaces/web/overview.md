@@ -215,17 +215,45 @@ AIのプロンプトや設定を編集する以上、ミスが致命的な結果
 - 親子タスク関係
 - セッション情報
 
-### Sessions
+### Sessions（5層セッション可視化）
 
 **機能:**
 - ステータス別フィルタ（Running, Completed, Failed）
-- 実行中セッションのリアルタイム監視
+- 5層プロセスのリアルタイム可視化（Orchestrator/Planner/Supervisor/Worker/Reviewer）
+- 各層の出力ストリーム表示（WebSocket経由）
 - セッションの開始・キャンセル
 - 成果物（artifacts）の確認
+
+**5層セッションUI:**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  AgentMine - Session: auth-feature                          │
+├─────────────────────────────────────────────────────────────┤
+│ [Orchestrator] [Planner] [Supervisor] [Workers ▼] [Reviewer]│
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  Orchestrator                                      [入力 ▼] │
+│  ─────────────────────────────────────────────────────────  │
+│  > 認証機能を実装してください                                │
+│  < 了解しました。Plannerにタスク分解を依頼します。            │
+│  < Planner完了: 3タスクに分解されました                      │
+│  < Supervisor: Worker起動中 (1/3)                           │
+│  ...                                                        │
+│                                                             │
+├─────────────────────────────────────────────────────────────┤
+│  タスク状況                                                  │
+│  #1 認証機能 ████████░░ 2/3 完了                            │
+│    ├─ #1-1 DBスキーマ ✅                                    │
+│    ├─ #1-2 API実装 🔄 Worker-2                              │
+│    └─ #1-3 UI実装 ⏳ blocked by #1-2                        │
+└─────────────────────────────────────────────────────────────┘
+```
 
 **Session詳細で表示する情報:**
 - ステータス、Agent情報
 - 開始時刻、経過時間
+- 5層プロセス状態（各層の起動状態、出力）
 - DoD結果
 - exit code
 - 成果物（変更ファイル一覧）
@@ -277,6 +305,8 @@ flowchart LR
 
 ## リアルタイム更新
 
+### SSE（Worker状態監視）
+
 Worker状態の監視にはServer-Sent Events（SSE）を使用する。
 
 **なぜSSEか:**
@@ -288,6 +318,46 @@ Worker状態の監視にはServer-Sent Events（SSE）を使用する。
 - Worker実行状態（running/completed/failed）
 - 経過時間
 - 進捗情報（利用可能な場合）
+
+### WebSocket（5層セッション可視化）
+
+5層セッションのリアルタイム出力配信にはWebSocketを使用する。
+
+**なぜWebSocketか:**
+- 双方向通信が必要（入力送信 + 出力受信）
+- 複数プロセスの出力を同時配信
+- 低レイテンシが必要
+
+**WebSocket API:**
+
+```typescript
+// クライアント → サーバー
+interface ClientMessage {
+  type: 'subscribe' | 'unsubscribe' | 'input'
+  sessionId?: string
+  processId?: string  // 入力先プロセス指定
+  text?: string
+}
+
+// サーバー → クライアント
+interface ServerMessage {
+  type: 'output' | 'status' | 'task_update'
+  processId?: string
+  role?: 'orchestrator' | 'planner' | 'supervisor' | 'worker' | 'reviewer'
+  stream?: 'stdout' | 'stderr'
+  data: any
+  timestamp: Date
+}
+```
+
+**セッション管理API:**
+
+| メソッド | パス | 説明 |
+|----------|------|------|
+| POST | /api/sessions/start | 5層セッション開始 |
+| POST | /api/sessions/{id}/send | 特定プロセスへ入力送信 |
+| POST | /api/sessions/{id}/stop | セッション終了 |
+| GET | /api/sessions/{id}/ws | WebSocket接続 |
 
 ## API Routes
 

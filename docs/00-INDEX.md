@@ -106,7 +106,8 @@ AgentMineの機能を実装・拡張したい：
 
 | ファイル | 内容 |
 |---------|------|
-| orchestrator-worker.md | Orchestrator/Workerモデル |
+| orchestrator-worker.md | 5層アーキテクチャ（Orchestrator/Planner/Supervisor/Worker/Reviewer） |
+| task-decomposition.md | タスク分解（Plannerの責務） |
 | db-master.md | DBマスター方式 |
 | observable-facts.md | Observable Facts（客観事実による判定） |
 | scope-control.md | スコープ制御（exclude/read/write） |
@@ -180,6 +181,8 @@ AgentMineの機能を実装・拡張したい：
 | トピック | ドキュメント |
 |---------|------------|
 | システムアーキテクチャ | @02-architecture/architecture.md |
+| 5層アーキテクチャ | @03-core-concepts/orchestrator-worker.md |
+| タスク分解 | @03-core-concepts/task-decomposition.md |
 | DBマスター方式 | @03-core-concepts/db-master.md |
 | Observable Facts | @03-core-concepts/observable-facts.md |
 | スコープ制御 | @03-core-concepts/scope-control.md |

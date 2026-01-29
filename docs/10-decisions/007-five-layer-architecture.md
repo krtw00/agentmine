@@ -2,8 +2,8 @@
 depends_on:
   - ./005-ai-agnostic-orchestration.md
   - ./006-dependency-and-proposals.md
-tags: [decisions, adr, architecture, shogun, planner, supervisor, worker, reviewer]
-ai_summary: "3層構造を5層に拡張し、Shogun/Planner/Supervisor/Worker/Reviewerの責務を明確化"
+tags: [decisions, adr, architecture, orchestrator, planner, supervisor, worker, reviewer]
+ai_summary: "3層構造を5層に拡張し、Orchestrator/Planner/Supervisor/Worker/Reviewerの責務を明確化"
 ---
 
 # ADR-007: 5層アーキテクチャ
@@ -37,28 +37,28 @@ flowchart TB
     Human[Human<br/>管理者]
 
     subgraph AI層
-        Shogun[Shogun<br/>人間IF・依頼・報告]
+        Orchestrator[Orchestrator<br/>人間IF・依頼・報告]
         Planner[Planner<br/>計画・分解]
         Supervisor[Supervisor<br/>実行管理]
         Worker[Worker<br/>実装]
         Reviewer[Reviewer<br/>品質検証]
     end
 
-    Human --> Shogun
-    Shogun --> Planner
+    Human --> Orchestrator
+    Orchestrator --> Planner
     Planner --> Supervisor
     Supervisor --> Worker
     Worker --> Reviewer
     Reviewer --> Supervisor
-    Supervisor --> Shogun
-    Shogun --> Human
+    Supervisor --> Orchestrator
+    Orchestrator --> Human
 ```
 
 ### 各層の責務
 
 | 層 | 責務 | やらないこと |
 |----|------|-------------|
-| Shogun | 人間との対話、依頼受付、完了報告 | 分解、Worker管理 |
+| Orchestrator | 人間との対話、依頼受付、完了報告 | 分解、Worker管理 |
 | Planner | タスク分解、依存関係設定、計画作成 | Worker起動、監視 |
 | Supervisor | Worker起動、進捗監視、NG対応 | 人間対話、分解 |
 | Worker | コード実装 | 判断、他層との通信 |
@@ -68,7 +68,7 @@ flowchart TB
 
 | AI役割 | 人間の役割 | 起動頻度 |
 |--------|-----------|---------|
-| Shogun | 経営者/依頼者 | 常駐（対話セッション） |
+| Orchestrator | 秘書/窓口担当 | 常駐（対話セッション） |
 | Planner | アーキテクト | タスク受付時 |
 | Supervisor | PM | 計画確定後〜完了まで |
 | Worker | 開発者 | タスクごと |
@@ -79,14 +79,14 @@ flowchart TB
 ```mermaid
 sequenceDiagram
     participant H as Human
-    participant S as Shogun
+    participant O as Orchestrator
     participant P as Planner
     participant V as Supervisor
     participant W as Worker
     participant R as Reviewer
 
-    H->>S: 「認証機能作って」
-    S->>P: タスク依頼
+    H->>O: 「認証機能作って」
+    O->>P: タスク依頼
 
     P->>P: 分解（3タスク）
     P->>P: 依存関係設定
@@ -100,8 +100,8 @@ sequenceDiagram
 
     alt OK
         R->>V: 検証OK
-        V->>S: 完了報告
-        S->>H: 「完了しました」
+        V->>O: 完了報告
+        O->>H: 「完了しました」
     else NG
         R->>V: 検証NG（理由）
         V->>P: 再計画依頼
@@ -128,25 +128,25 @@ AgentMineは判断しない。各層に判断材料を提供するのみ。
 
 | 層 | AgentMineの役割 |
 |----|----------------|
-| Shogun | CLI/MCP/API経由でタスク登録 |
+| Orchestrator | CLI/MCP/API経由でタスク登録 |
 | Planner | コンテキストファイル提供、proposals保存 |
 | Supervisor | worker run、status、監視API |
 | Worker | worktree提供、スコープ制御 |
 | Reviewer | DoD検証実行（自動） |
 
 ```
-┌─────────────────────────────────────────────┐
-│  AI層（判断する）                            │
-│  Shogun / Planner / Supervisor / Worker     │
-└─────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│  AI層（判断する）                                        │
+│  Orchestrator / Planner / Supervisor / Worker / Reviewer │
+└─────────────────────────────────────────────────────────┘
         ↓ CLI / MCP / API
-┌─────────────────────────────────────────────┐
-│  AgentMine（判断しない）                     │
-│  - タスク管理                               │
-│  - 状態提供                                 │
-│  - 実行環境提供                             │
-│  - 結果記録                                 │
-└─────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│  AgentMine（判断しない）                                 │
+│  - タスク管理                                           │
+│  - 状態提供                                             │
+│  - 実行環境提供                                         │
+│  - 結果記録                                             │
+└─────────────────────────────────────────────────────────┘
 ```
 
 ## 検討した選択肢
@@ -163,7 +163,7 @@ AgentMineは判断しない。各層に判断材料を提供するのみ。
 
 | 項目 | 内容 |
 |------|------|
-| 構成 | Shogun / Decomposer / Worker / Reviewer |
+| 構成 | Orchestrator / Decomposer / Worker / Reviewer |
 | メリット | 検収追加でシンプル |
 | デメリット | Decomposerの責務過多は解消されない |
 
@@ -171,7 +171,7 @@ AgentMineは判断しない。各層に判断材料を提供するのみ。
 
 | 項目 | 内容 |
 |------|------|
-| 構成 | Shogun / Planner / Supervisor / Worker / Reviewer |
+| 構成 | Orchestrator / Planner / Supervisor / Worker / Reviewer |
 | メリット | 責務明確、専門化、スケーラブル |
 | デメリット | 層間通信コスト |
 
@@ -211,7 +211,7 @@ AgentMineは判断しない。各層に判断材料を提供するのみ。
 
 | 層 | 実装方式 |
 |----|---------|
-| Shogun | Claude Code対話セッション（既存） |
+| Orchestrator | Claude Code対話セッション（既存） |
 | Planner | 専用Agent定義 + コンテキストファイル |
 | Supervisor | 監視ループ + AgentMine API |
 | Worker | worktree隔離（既存） |
