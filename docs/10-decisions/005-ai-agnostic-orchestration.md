@@ -152,10 +152,18 @@ sequenceDiagram
 
 以下は今後検討が必要：
 
-- 依存関係のモデル化方法
-- 提案の保存先（新テーブル or 既存拡張）
+- ~~依存関係のモデル化方法~~ → [ADR-006](./006-dependency-and-proposals.md) で決定
+- ~~提案の保存先（新テーブル or 既存拡張）~~ → [ADR-006](./006-dependency-and-proposals.md) で決定
+- ~~3層構造の責務分担~~ → [ADR-007](./007-five-layer-architecture.md) で5層に拡張
 - 自動承認モードの条件設定
 - 失敗時のリトライ戦略
+
+## 後続ADR
+
+本ADRは以下のADRで拡張されている：
+
+- [ADR-006](./006-dependency-and-proposals.md) - 依存関係モデルと提案テーブル
+- [ADR-007](./007-five-layer-architecture.md) - 5層アーキテクチャ（3層→5層に拡張）
 
 ## 関連ADR
 
