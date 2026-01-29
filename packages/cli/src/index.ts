@@ -10,6 +10,7 @@ import { mcpCommand } from './commands/mcp.js'
 import { dbCommand } from './commands/db.js'
 import { auditCommand } from './commands/audit.js'
 import { settingsCommand } from './commands/settings.js'
+import { uiCommand } from './commands/ui.js'
 
 const program = new Command()
 
@@ -29,5 +30,6 @@ program.addCommand(mcpCommand)
 program.addCommand(dbCommand)
 program.addCommand(auditCommand)
 program.addCommand(settingsCommand)
+program.addCommand(uiCommand)
 
 program.parse()

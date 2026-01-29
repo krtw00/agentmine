@@ -212,6 +212,22 @@ export const auditLogs = pgTable('audit_logs', {
 })
 
 /**
+ * Task dependencies table
+ */
+export const taskDependencies = pgTable('task_dependencies', {
+  id: serial('id').primaryKey(),
+  taskId: integer('task_id')
+    .references(() => tasks.id)
+    .notNull(),
+  dependsOnTaskId: integer('depends_on_task_id')
+    .references(() => tasks.id)
+    .notNull(),
+  createdAt: integer('created_at').notNull(),
+}, (table) => ({
+  uniqueDep: unique().on(table.taskId, table.dependsOnTaskId),
+}))
+
+/**
  * Project decisions table (Legacy)
  */
 export const projectDecisions = pgTable('project_decisions', {

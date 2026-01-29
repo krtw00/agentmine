@@ -23,7 +23,8 @@
     "ora": "^8.1.1",
     "cli-table3": "^0.6.5",
     "inquirer": "^12.3.0",
-    "yaml": "^2.7.0"
+    "yaml": "^2.7.0",
+    "open": "^10.1.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",

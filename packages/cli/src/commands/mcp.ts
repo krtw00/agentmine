@@ -281,6 +281,42 @@ class McpServer {
         },
       },
 
+      // Task dependency tools
+      {
+        name: 'task_add_dependency',
+        description: 'Add a dependency between tasks (taskId is blocked by dependsOnTaskId)',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            taskId: { type: 'number', description: 'Task that will be blocked' },
+            dependsOnTaskId: { type: 'number', description: 'Task that blocks it' },
+          },
+          required: ['taskId', 'dependsOnTaskId'],
+        },
+      },
+      {
+        name: 'task_remove_dependency',
+        description: 'Remove a dependency between tasks',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            taskId: { type: 'number', description: 'Task to unblock' },
+            dependsOnTaskId: { type: 'number', description: 'Task to remove from blockers' },
+          },
+          required: ['taskId', 'dependsOnTaskId'],
+        },
+      },
+      {
+        name: 'task_next',
+        description: 'Find the next available task (open, not blocked, highest priority)',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            agentName: { type: 'string', description: 'Agent name (for future use)' },
+          },
+        },
+      },
+
       // Config tools
       {
         name: 'config_get',
@@ -309,6 +345,14 @@ class McpServer {
         return this.taskService.create(args as any)
       case 'task_update':
         return this.taskService.update(args.id as number, args as any)
+      case 'task_add_dependency':
+        await this.taskService.addDependency(args.taskId as number, args.dependsOnTaskId as number)
+        return { success: true, taskId: args.taskId, dependsOnTaskId: args.dependsOnTaskId }
+      case 'task_remove_dependency':
+        await this.taskService.removeDependency(args.taskId as number, args.dependsOnTaskId as number)
+        return { success: true, taskId: args.taskId, removedDependency: args.dependsOnTaskId }
+      case 'task_next':
+        return this.taskService.findNext({ agentName: args.agentName as string | undefined })
 
       // Session tools
       case 'session_list':

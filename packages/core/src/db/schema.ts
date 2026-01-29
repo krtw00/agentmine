@@ -322,6 +322,25 @@ export const auditLogs = sqliteTable('audit_logs', {
 })
 
 /**
+ * Task dependencies table
+ * タスク間の依存関係（blockedBy/blocks）
+ */
+export const taskDependencies = sqliteTable('task_dependencies', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  taskId: integer('task_id')
+    .references(() => tasks.id)
+    .notNull(),
+  dependsOnTaskId: integer('depends_on_task_id')
+    .references(() => tasks.id)
+    .notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+}, (table) => ({
+  uniqueDep: unique().on(table.taskId, table.dependsOnTaskId),
+}))
+
+/**
  * Project decisions table (Legacy - kept for backward compatibility)
  * Note: Prefer using memories table with category='decision'
  */
@@ -449,6 +468,9 @@ export type NewSetting = typeof settings.$inferInsert
 
 export type AuditLog = typeof auditLogs.$inferSelect
 export type NewAuditLog = typeof auditLogs.$inferInsert
+
+export type TaskDependency = typeof taskDependencies.$inferSelect
+export type NewTaskDependency = typeof taskDependencies.$inferInsert
 
 // ============================================
 // Config definition (from YAML - legacy)

@@ -319,6 +319,17 @@ async function initializeSqliteDb(db: SqliteDb): Promise<void> {
     )
   `)
 
+  // Create task_dependencies table
+  await db.run(sql`
+    CREATE TABLE IF NOT EXISTS task_dependencies (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id INTEGER NOT NULL REFERENCES tasks(id),
+      depends_on_task_id INTEGER NOT NULL REFERENCES tasks(id),
+      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      UNIQUE(task_id, depends_on_task_id)
+    )
+  `)
+
   // Create project_decisions table (legacy)
   await db.run(sql`
     CREATE TABLE IF NOT EXISTS project_decisions (
@@ -352,6 +363,8 @@ async function initializeSqliteDb(db: SqliteDb): Promise<void> {
   await db.run(sql`CREATE INDEX IF NOT EXISTS idx_audit_logs_entity ON audit_logs(entity_type, entity_id)`)
   await db.run(sql`CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at)`)
   await db.run(sql`CREATE INDEX IF NOT EXISTS idx_decisions_category ON project_decisions(category)`)
+  await db.run(sql`CREATE INDEX IF NOT EXISTS idx_task_deps_task ON task_dependencies(task_id)`)
+  await db.run(sql`CREATE INDEX IF NOT EXISTS idx_task_deps_depends_on ON task_dependencies(depends_on_task_id)`)
 
   // Run migrations for existing databases
   await runSqliteMigrations(db)
@@ -516,6 +529,7 @@ export {
   settings as pgSettings,
   auditLogs as pgAuditLogs,
   projectDecisions as pgProjectDecisions,
+  taskDependencies as pgTaskDependencies,
 } from './pg-schema.js'
 
 // Re-export PostgreSQL types

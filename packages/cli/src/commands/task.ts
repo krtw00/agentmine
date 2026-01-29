@@ -7,6 +7,7 @@ import {
   isProjectInitialized,
   TaskService,
   TaskNotFoundError,
+  TaskDependencyError,
   type Task,
   type TaskStatus,
   type TaskPriority,
@@ -198,8 +199,16 @@ taskCommand
       process.exit(5)
     }
 
+    // Fetch dependency info
+    const blockedBy = await service.getDependencies(task.id)
+    const blocks = await service.getDependents(task.id)
+
     if (options.json) {
-      console.log(JSON.stringify(task, null, 2))
+      console.log(JSON.stringify({
+        ...task,
+        blockedBy: blockedBy.map(t => ({ id: t.id, title: t.title, status: t.status })),
+        blocks: blocks.map(t => ({ id: t.id, title: t.title, status: t.status })),
+      }, null, 2))
       return
     }
 
@@ -212,6 +221,18 @@ taskCommand
     console.log(chalk.gray('Assignee:  '), task.assigneeName ?? '-')
     console.log(chalk.gray('Session:   '), task.selectedSessionId ? `#${task.selectedSessionId}` : '-')
     console.log(chalk.gray('Labels:    '), task.labels?.length ? task.labels.join(', ') : '-')
+
+    if (blockedBy.length > 0) {
+      const depList = blockedBy.map(t => {
+        const done = t.status === 'done' ? chalk.green('done') : chalk.yellow(t.status)
+        return `#${t.id} (${done})`
+      }).join(', ')
+      console.log(chalk.gray('Blocked by:'), depList)
+    }
+    if (blocks.length > 0) {
+      console.log(chalk.gray('Blocks:    '), blocks.map(t => `#${t.id}`).join(', '))
+    }
+
     console.log(chalk.gray('Created:   '), task.createdAt?.toISOString() ?? '-')
     if (task.description) {
       console.log('')
@@ -404,5 +425,122 @@ taskCommand
     console.log(chalk.gray('  Cancelled:  '), counts.cancelled)
     console.log('')
     console.log(chalk.white('  Total:      '), Object.values(counts).reduce((a, b) => a + b, 0))
+    console.log('')
+  })
+
+// task block
+taskCommand
+  .command('block <id>')
+  .description('Block a task by another task (add dependency)')
+  .requiredOption('--by <depId>', 'Task ID that blocks this task')
+  .option('--json', 'JSON output')
+  .option('--quiet', 'Minimal output')
+  .action(async (id, options) => {
+    ensureInitialized()
+    const service = getTaskService()
+
+    try {
+      await service.addDependency(parseInt(id), parseInt(options.by))
+
+      if (options.json) {
+        console.log(JSON.stringify({ taskId: parseInt(id), blockedBy: parseInt(options.by) }))
+      } else if (options.quiet) {
+        console.log(id)
+      } else {
+        console.log(chalk.green('✓ Task'), chalk.cyan(`#${id}`), chalk.green('blocked by'), chalk.cyan(`#${options.by}`))
+      }
+    } catch (error) {
+      if (error instanceof TaskNotFoundError) {
+        console.error(chalk.red(`Task not found: ${error.message}`))
+        process.exit(5)
+      }
+      if (error instanceof TaskDependencyError) {
+        console.error(chalk.red(`Dependency error: ${error.message}`))
+        process.exit(6)
+      }
+      throw error
+    }
+  })
+
+// task unblock
+taskCommand
+  .command('unblock <id>')
+  .description('Remove a dependency from a task')
+  .requiredOption('--from <depId>', 'Task ID to remove from blockers')
+  .option('--json', 'JSON output')
+  .option('--quiet', 'Minimal output')
+  .action(async (id, options) => {
+    ensureInitialized()
+    const service = getTaskService()
+
+    await service.removeDependency(parseInt(id), parseInt(options.from))
+
+    if (options.json) {
+      console.log(JSON.stringify({ taskId: parseInt(id), unblockedFrom: parseInt(options.from) }))
+    } else if (options.quiet) {
+      console.log(id)
+    } else {
+      console.log(chalk.green('✓ Task'), chalk.cyan(`#${id}`), chalk.green('unblocked from'), chalk.cyan(`#${options.from}`))
+    }
+  })
+
+// task next
+taskCommand
+  .command('next')
+  .description('Find the next available task (open, not blocked, highest priority)')
+  .option('--agent <name>', 'Agent name (for future use)')
+  .option('--json', 'JSON output')
+  .option('--quiet', 'Minimal output (ID only)')
+  .action(async (options) => {
+    ensureInitialized()
+    const service = getTaskService()
+
+    const task = await service.findNext({ agentName: options.agent })
+
+    if (!task) {
+      if (options.json) {
+        console.log(JSON.stringify(null))
+      } else if (!options.quiet) {
+        console.log(chalk.gray('No available tasks found'))
+      }
+      return
+    }
+
+    if (options.json) {
+      console.log(JSON.stringify(task))
+    } else if (options.quiet) {
+      console.log(task.id)
+    } else {
+      console.log(chalk.green('Next task:'), chalk.cyan(`#${task.id}`), chalk.white(task.title))
+      console.log(chalk.gray(`  Priority: ${task.priority} | Type: ${task.type} | Status: ${task.status}`))
+    }
+  })
+
+// task decompose (stub)
+taskCommand
+  .command('decompose <id>')
+  .description('Decompose a task into subtasks (future AI feature)')
+  .option('-n, --count <count>', 'Number of subtasks to create', '3')
+  .action(async (id, options) => {
+    ensureInitialized()
+    const service = getTaskService()
+
+    const task = await service.findById(parseInt(id))
+    if (!task) {
+      console.error(chalk.red(`Task #${id} not found`))
+      process.exit(5)
+    }
+
+    console.log('')
+    console.log(chalk.yellow('Task decomposition is a planned feature.'))
+    console.log('')
+    console.log(chalk.gray('When implemented, this command will:'))
+    console.log(chalk.gray(`  1. Analyze task #${id}: "${task.title}"`))
+    console.log(chalk.gray(`  2. Use AI to break it into ~${options.count} subtasks`))
+    console.log(chalk.gray('  3. Create child tasks with appropriate dependencies'))
+    console.log(chalk.gray('  4. Set priority and type based on analysis'))
+    console.log('')
+    console.log(chalk.gray('For now, create subtasks manually:'))
+    console.log(chalk.cyan(`  agentmine task add "Subtask title" --parent ${id}`))
     console.log('')
   })

@@ -12,6 +12,7 @@ import {
   agentHistory as sqliteAgentHistory,
   memoryHistory as sqliteMemoryHistory,
   projectDecisions as sqliteProjectDecisions,
+  taskDependencies as sqliteTaskDependencies,
   // PostgreSQL schema tables
   pgTasks,
   pgSessions,
@@ -23,6 +24,7 @@ import {
   pgAgentHistory,
   pgMemoryHistory,
   pgProjectDecisions,
+  pgTaskDependencies,
 } from '@agentmine/core';
 
 // Singleton database instance for API routes
@@ -52,3 +54,4 @@ export const auditLogs = isPostgres ? pgAuditLogs : sqliteAuditLogs;
 export const agentHistory = isPostgres ? pgAgentHistory : sqliteAgentHistory;
 export const memoryHistory = isPostgres ? pgMemoryHistory : sqliteMemoryHistory;
 export const projectDecisions = isPostgres ? pgProjectDecisions : sqliteProjectDecisions;
+export const taskDependencies = isPostgres ? pgTaskDependencies : sqliteTaskDependencies;

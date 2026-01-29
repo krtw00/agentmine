@@ -198,6 +198,17 @@ export async function initializePgDb(db: PgDb): Promise<void> {
     )
   `)
 
+  // Create task_dependencies table
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS task_dependencies (
+      id SERIAL PRIMARY KEY,
+      task_id INTEGER NOT NULL REFERENCES tasks(id),
+      depends_on_task_id INTEGER NOT NULL REFERENCES tasks(id),
+      created_at INTEGER NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())::INTEGER,
+      UNIQUE(task_id, depends_on_task_id)
+    )
+  `)
+
   // Create project_decisions table (legacy)
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS project_decisions (
@@ -231,6 +242,8 @@ export async function initializePgDb(db: PgDb): Promise<void> {
   await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_audit_logs_entity ON audit_logs(entity_type, entity_id)`)
   await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at)`)
   await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_decisions_category ON project_decisions(category)`)
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_task_deps_task ON task_dependencies(task_id)`)
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_task_deps_depends_on ON task_dependencies(depends_on_task_id)`)
 
   // Seed default agents if not exist
   await seedDefaultAgents(db)

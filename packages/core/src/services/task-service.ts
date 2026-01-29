@@ -1,18 +1,20 @@
-import { eq, and, desc, isNull, sql } from 'drizzle-orm'
+import { eq, and, desc, asc, isNull, sql, ne, notInArray, inArray } from 'drizzle-orm'
 import type { Db } from '../db/index.js'
 import {
   tasks,
+  taskDependencies,
   type Task,
   type NewTask,
   type TaskStatus,
   type TaskPriority,
   type TaskType,
   type AssigneeType,
+  type TaskDependency,
 } from '../db/schema.js'
-import { TaskNotFoundError, CircularDependencyError } from '../errors.js'
+import { TaskNotFoundError, CircularDependencyError, TaskDependencyError } from '../errors.js'
 
 // Re-export errors for convenience
-export { TaskNotFoundError, CircularDependencyError } from '../errors.js'
+export { TaskNotFoundError, CircularDependencyError, TaskDependencyError } from '../errors.js'
 
 // ============================================
 // Types
@@ -197,6 +199,11 @@ export class TaskService {
       .where(eq(tasks.id, id))
       .returning()
 
+    // Propagate status changes upward
+    if (input.status && input.status !== existing.status) {
+      await this.propagateStatus(id, input.status)
+    }
+
     return task
   }
 
@@ -260,6 +267,210 @@ export class TaskService {
       selectedSessionId: sessionId,
       status: 'done',
     })
+  }
+
+  // ============================================
+  // Dependency management
+  // ============================================
+
+  /**
+   * Add a dependency (taskId is blocked by dependsOnTaskId)
+   * Includes circular dependency detection via BFS
+   */
+  async addDependency(taskId: number, dependsOnTaskId: number): Promise<void> {
+    if (taskId === dependsOnTaskId) {
+      throw new TaskDependencyError(taskId, dependsOnTaskId, 'a task cannot depend on itself')
+    }
+
+    // Verify both tasks exist
+    const task = await this.findById(taskId)
+    if (!task) throw new TaskNotFoundError(taskId)
+    const depTask = await this.findById(dependsOnTaskId)
+    if (!depTask) throw new TaskNotFoundError(dependsOnTaskId)
+
+    // BFS cycle detection: check if dependsOnTaskId is (transitively) blocked by taskId
+    if (await this.wouldCreateDependencyCycle(taskId, dependsOnTaskId)) {
+      throw new TaskDependencyError(taskId, dependsOnTaskId, 'would create a circular dependency')
+    }
+
+    await this.db
+      .insert(taskDependencies)
+      .values({ taskId, dependsOnTaskId })
+  }
+
+  /**
+   * Remove a dependency
+   */
+  async removeDependency(taskId: number, dependsOnTaskId: number): Promise<void> {
+    await this.db
+      .delete(taskDependencies)
+      .where(
+        and(
+          eq(taskDependencies.taskId, taskId),
+          eq(taskDependencies.dependsOnTaskId, dependsOnTaskId),
+        ),
+      )
+  }
+
+  /**
+   * Get tasks that this task depends on (blockedBy)
+   */
+  async getDependencies(taskId: number): Promise<Task[]> {
+    const deps = await this.db
+      .select({ dependsOnTaskId: taskDependencies.dependsOnTaskId })
+      .from(taskDependencies)
+      .where(eq(taskDependencies.taskId, taskId))
+
+    if (deps.length === 0) return []
+
+    const ids = deps.map(d => d.dependsOnTaskId)
+    return this.db
+      .select()
+      .from(tasks)
+      .where(inArray(tasks.id, ids))
+  }
+
+  /**
+   * Get tasks that depend on this task (blocks)
+   */
+  async getDependents(taskId: number): Promise<Task[]> {
+    const deps = await this.db
+      .select({ taskId: taskDependencies.taskId })
+      .from(taskDependencies)
+      .where(eq(taskDependencies.dependsOnTaskId, taskId))
+
+    if (deps.length === 0) return []
+
+    const ids = deps.map(d => d.taskId)
+    return this.db
+      .select()
+      .from(tasks)
+      .where(inArray(tasks.id, ids))
+  }
+
+  /**
+   * Check if a task has unfinished dependencies (is blocked)
+   */
+  async isBlocked(taskId: number): Promise<boolean> {
+    const deps = await this.getDependencies(taskId)
+    return deps.some(d => d.status !== 'done')
+  }
+
+  // ============================================
+  // Task selection (next)
+  // ============================================
+
+  /**
+   * Find the next available task: open, not blocked, ordered by priority desc then createdAt asc
+   */
+  async findNext(options?: { agentName?: string }): Promise<Task | null> {
+    // Get all open tasks
+    const openTasks = await this.db
+      .select()
+      .from(tasks)
+      .where(eq(tasks.status, 'open'))
+
+    if (openTasks.length === 0) return null
+
+    // Priority ordering
+    const priorityOrder: Record<string, number> = {
+      critical: 4,
+      high: 3,
+      medium: 2,
+      low: 1,
+    }
+
+    // Filter out blocked tasks and sort
+    const candidates: Task[] = []
+    for (const task of openTasks) {
+      const blocked = await this.isBlocked(task.id)
+      if (!blocked) {
+        candidates.push(task)
+      }
+    }
+
+    if (candidates.length === 0) return null
+
+    candidates.sort((a, b) => {
+      const pa = priorityOrder[a.priority] ?? 0
+      const pb = priorityOrder[b.priority] ?? 0
+      if (pb !== pa) return pb - pa
+      // Earlier createdAt first
+      const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0
+      const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0
+      return ta - tb
+    })
+
+    return candidates[0]
+  }
+
+  // ============================================
+  // Status propagation
+  // ============================================
+
+  /**
+   * Propagate status changes upward to parent tasks
+   * - Child becomes in_progress → parent becomes in_progress (if open)
+   * - All children done → parent becomes done (recursive upward)
+   */
+  private async propagateStatus(taskId: number, newStatus: TaskStatus): Promise<void> {
+    const task = await this.findById(taskId)
+    if (!task || !task.parentId) return
+
+    const parent = await this.findById(task.parentId)
+    if (!parent) return
+
+    if (newStatus === 'in_progress' && parent.status === 'open') {
+      await this.db
+        .update(tasks)
+        .set({ status: 'in_progress', updatedAt: new Date() })
+        .where(eq(tasks.id, parent.id))
+      // Continue propagation upward
+      await this.propagateStatus(parent.id, 'in_progress')
+    } else if (newStatus === 'done') {
+      // Check if all siblings are done
+      const siblings = await this.getSubtasks(parent.id)
+      const allDone = siblings.every(s => s.id === taskId ? true : s.status === 'done')
+      if (allDone) {
+        await this.db
+          .update(tasks)
+          .set({ status: 'done', updatedAt: new Date() })
+          .where(eq(tasks.id, parent.id))
+        // Continue propagation upward
+        await this.propagateStatus(parent.id, 'done')
+      }
+    }
+  }
+
+  // ============================================
+  // Cycle detection
+  // ============================================
+
+  /**
+   * Check if adding taskId→dependsOnTaskId would create a cycle
+   * BFS from dependsOnTaskId: if we can reach taskId, it's a cycle
+   */
+  private async wouldCreateDependencyCycle(taskId: number, dependsOnTaskId: number): Promise<boolean> {
+    const visited = new Set<number>()
+    const queue = [dependsOnTaskId]
+
+    while (queue.length > 0) {
+      const current = queue.shift()!
+      if (current === taskId) return true
+      if (visited.has(current)) continue
+      visited.add(current)
+
+      const deps = await this.db
+        .select({ dependsOnTaskId: taskDependencies.dependsOnTaskId })
+        .from(taskDependencies)
+        .where(eq(taskDependencies.taskId, current))
+
+      for (const dep of deps) {
+        queue.push(dep.dependsOnTaskId)
+      }
+    }
+
+    return false
   }
 
   /**

@@ -35,6 +35,17 @@ export class CircularDependencyError extends AgentmineError {
   }
 }
 
+export class TaskDependencyError extends AgentmineError {
+  constructor(taskId: number, dependsOnTaskId: number, reason: string) {
+    super(
+      `Cannot add dependency: task #${taskId} depends on #${dependsOnTaskId} - ${reason}`,
+      6,
+      { taskId, dependsOnTaskId }
+    )
+    this.name = 'TaskDependencyError'
+  }
+}
+
 // ============================================
 // Session Errors
 // ============================================
